@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MedicalPrescription.Application\MedicalPrescription.Application.csproj" />
+    <ProjectReference Include="..\MedicalPrescription.Domain\MedicalPrescription.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

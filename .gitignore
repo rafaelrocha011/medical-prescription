@@ -1,0 +1,27 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# .NET
+**/bin/
+**/obj/
+**/TestResults/
+
+# Angular
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local secrets
+**/appsettings.Local.json
+**/appsettings.*.local.json
+
+# Logs
+*.log
