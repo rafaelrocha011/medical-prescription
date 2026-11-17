@@ -103,6 +103,29 @@ O Angular acessa a API pelo mesmo host usando o proxy reverso do **Nginx** (`/ap
 
 **Primeiro acesso:** quando a API roda com `ASPNETCORE_ENVIRONMENT=Development`, o inicializador de desenvolvimento insere pacientes e medicamentos de exemplo caso os respectivos catalogos estejam vazios. As prescricoes sao criadas pelo usuario; o banco nao precisa conter prescricoes inicialmente.
 
+### Garantir o seed na primeira instalacao
+
+O seed nao depende de importar `database/schema.sql`: o servico `migrate` aplica as migrations, e a API, iniciada em **Development** pelo `docker-compose.yml`, executa `DevelopmentDataSeeder.SeedAsync`. O metodo insere **Paciente Exemplo Um**, **Paciente Exemplo Dois**, **Medicamento Exemplo A** e **Medicamento Exemplo B** quando cada catalogo estiver completamente vazio.
+
+Confira o banco iniciado normalmente:
+
+```powershell
+(Invoke-RestMethod http://localhost:5080/api/pacientes) | Select-Object nomeCompleto
+(Invoke-RestMethod http://localhost:5080/api/medicamentos) | Select-Object nome
+```
+
+Para simular **uma maquina limpa sem apagar o banco de desenvolvimento**, rode o teste automatizado abaixo a partir da raiz, com Docker Desktop ativo:
+
+```powershell
+./scripts/validar-primeira-instalacao.ps1
+```
+
+O teste cria um **projeto Compose com nome unico e volume MySQL proprio**, usa as portas de avaliacao `15080` (API), `14200` (frontend) e `13307` (MySQL), faz build, sobe a stack, verifica que os quatro registros esperados existem exatamente uma vez e reinicia a API para confirmar que o seed nao duplica dados. Ao final remove **somente os contêineres e volumes do projeto temporario**. Para manter o ambiente de teste aberto, use `-KeepEnvironment`; nesse caso, remova-o manualmente depois.
+
+O workflow de CI tambem executa esse teste de primeiro boot em ambiente isolado, antes de permitir a publicacao de imagens Docker.
+
+**Limite atual:** como o seed verifica se cada tabela esta vazia, ele nao recria um exemplo individual que tenha sido removido de uma tabela que ainda contem outros registros. Isso e intencional para nao sobrescrever dados alterados durante o desenvolvimento. O seed e **apenas demonstrativo** e so roda quando a API usa `ASPNETCORE_ENVIRONMENT=Development`. Nao use nomes ficticios ou seed de desenvolvimento em producao.
+
 ## Operacao diaria
 
 Execute os comandos na raiz do repositorio:
