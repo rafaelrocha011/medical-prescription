@@ -80,9 +80,20 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  seed-smoke:
+    name: Primeiro boot - seed em MySQL vazio
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verificar Docker Compose e catalogos em ambiente limpo
+        shell: pwsh
+        run: ./scripts/validar-primeira-instalacao.ps1
+
   images:
     name: Imagens Docker -> GitHub Packages
-    needs: [backend, frontend]
+    needs: [backend, frontend, seed-smoke]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     permissions:
