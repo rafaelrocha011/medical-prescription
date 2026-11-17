@@ -164,3 +164,12 @@ button:disabled {
     flex-wrap: wrap;
   }
 }
+
+
+.busca-item {
+  grid-column: 1 / -1;
+  margin-bottom: 8px;
+}
+.ajuda { color: #64748b; font-size: 12px; font-weight: 400; }
+.erro-campo { color: #b91c1c; font-size: 12px; font-weight: 500; }
+input[readonly] { background: #f1f5f9; cursor: default; }
