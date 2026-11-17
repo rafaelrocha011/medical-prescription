@@ -1,4 +1,5 @@
-﻿using MedicalPrescription.Domain.Entities;
+using MedicalPrescription.Domain.ValueObjects;
+using MedicalPrescription.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -43,12 +44,12 @@ public sealed class PrescricaoItemConfiguration
         {
             dosagem.Property(x => x.Quantidade)
                 .HasColumnName("dose")
-                .HasPrecision(12, 3)
+                .HasPrecision(Dosagem.PrecisaoTotal, Dosagem.CasasDecimais)
                 .IsRequired();
 
             dosagem.Property(x => x.UnidadeMedida)
                 .HasColumnName("unidade_medida")
-                .HasMaxLength(20)
+                .HasMaxLength(Dosagem.TamanhoMaximoUnidade)
                 .IsRequired();
         });
 

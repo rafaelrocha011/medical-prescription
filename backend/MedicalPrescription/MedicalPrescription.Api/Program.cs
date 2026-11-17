@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.OData;
+using Microsoft.AspNetCore.OData;
 using MedicalPrescription.Api.Errors;
 using MedicalPrescription.Infrastructure;
 using MedicalPrescription.Api.Configuration;
@@ -12,7 +12,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Add services to the container.
 
 builder.Services.AddControllers()
-    .AddOData(options => options
+    .AddOData(options =>
+    {
+        options.TimeZone = TimeZoneInfo.Utc;
+
+        options
         .Select()
         .Filter()
         .OrderBy()
@@ -20,7 +24,8 @@ builder.Services.AddControllers()
         .SetMaxTop(100)
         .AddRouteComponents(
             "odata",
-            ODataEdmModel.Criar()));
+            ODataEdmModel.Criar());
+    });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
