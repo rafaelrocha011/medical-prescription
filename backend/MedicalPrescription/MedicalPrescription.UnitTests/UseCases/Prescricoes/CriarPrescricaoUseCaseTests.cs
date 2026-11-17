@@ -1,7 +1,7 @@
 
 using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.DTOs.Prescricoes;
-using MedicalPrescription.Application.UseCases.Prescricoes.CriarPrescricao;
+using MedicalPrescription.Application.Commands.Prescricoes.CriarPrescricao;
 using MedicalPrescription.Domain.Entities;
 using MedicalPrescription.Domain.Enums;
 using Xunit;
@@ -12,7 +12,7 @@ public class CriarPrescricaoUseCaseTests
 {
     private readonly FakePacienteRepository _pacientes = new();
     private readonly FakeMedicamentoRepository _medicamentos = new();
-    private readonly FakePrescricaoRepository _prescricoes = new();
+    private readonly FakePrescricaoWriteRepository _prescricoes = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
 
     private readonly CriarPrescricaoUseCase _useCase;
@@ -209,11 +209,11 @@ public class CriarPrescricaoUseCaseTests
         }
     }
 
-    private sealed class FakePrescricaoRepository : IPrescricaoRepository
+    private sealed class FakePrescricaoWriteRepository : IPrescricaoWriteRepository
     {
         public List<Prescricao> Adicionadas { get; } = new();
 
-        public Task<Prescricao?> ObterPorIdAsync(
+        public Task<Prescricao?> ObterParaEscritaAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {

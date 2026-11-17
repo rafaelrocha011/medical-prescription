@@ -2,18 +2,18 @@ using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.Abstractions.UseCases.Catalogos;
 using MedicalPrescription.Application.DTOs.Catalogos;
 
-namespace MedicalPrescription.Application.UseCases.Catalogos;
+namespace MedicalPrescription.Application.Queries.Catalogos;
 
-public sealed class ListarPacientesUseCase : IListarPacientesUseCase
+public sealed class ListarMedicamentosUseCase : IListarMedicamentosUseCase
 {
-    private readonly IPacienteRepository _repository;
+    private readonly IMedicamentoRepository _repository;
 
-    public ListarPacientesUseCase(IPacienteRepository repository)
+    public ListarMedicamentosUseCase(IMedicamentoRepository repository)
     {
         _repository = repository;
     }
 
-    public Task<IReadOnlyList<PacienteResumoDto>> ExecutarAsync(
+    public Task<IReadOnlyList<MedicamentoResumoDto>> ExecutarAsync(
         string? busca,
         CancellationToken cancellationToken = default)
     {

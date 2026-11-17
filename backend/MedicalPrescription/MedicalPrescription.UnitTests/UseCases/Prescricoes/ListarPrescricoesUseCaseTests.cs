@@ -1,6 +1,6 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.DTOs.Prescricoes;
-using MedicalPrescription.Application.UseCases.Prescricoes.ListarPrescricoes;
+using MedicalPrescription.Application.Queries.Prescricoes.ListarPrescricoes;
 using MedicalPrescription.Domain.Entities;
 using MedicalPrescription.Domain.Enums;
 using Xunit;
@@ -111,7 +111,7 @@ public class ListarPrescricoesUseCaseTests
     }
 
     private sealed class FakeConsultaRepository
-        : IPrescricaoConsultaRepository
+        : IPrescricaoReadRepository
     {
         private readonly List<Prescricao> _dados = new();
 
@@ -122,6 +122,28 @@ public class ListarPrescricoesUseCaseTests
             _dados.Add(prescricao);
         }
 
+        public Task<PrescricaoDetalheDto?> ObterPorIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            var p = _dados.FirstOrDefault(x => x.Id == id);
+
+            if (p is null)
+                return Task.FromResult<PrescricaoDetalheDto?>(null);
+
+            var itens = p.Itens.Select(i => new PrescricaoItemDto(
+                i.Id, i.MedicamentoId, i.NomeMedicamento,
+                i.FormaFarmaceutica, i.Dosagem.Quantidade,
+                i.Dosagem.UnidadeMedida, i.Frequencia,
+                i.InicioTratamento, i.DuracaoTratamentoDias,
+                i.UsoContinuo, i.ViaAdministracao,
+                i.PrazoUtilizacao, i.Observacao)).ToArray();
+
+            return Task.FromResult<PrescricaoDetalheDto?>(
+                new PrescricaoDetalheDto(
+                    p.Id, p.PacienteId, p.Tipo, p.TextoLivre,
+                    p.CriadaEmUtc, itens));
+        }
         public Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
             int pagina,
             int tamanhoPagina,

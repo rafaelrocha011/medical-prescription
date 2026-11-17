@@ -1,22 +1,23 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Commands.Prescricoes.Shared;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
 using MedicalPrescription.Application.DTOs.Prescricoes;
 using MedicalPrescription.Domain.Entities;
 using MedicalPrescription.Domain.Enums;
 
-namespace MedicalPrescription.Application.UseCases.Prescricoes.CriarPrescricao;
+namespace MedicalPrescription.Application.Commands.Prescricoes.CriarPrescricao;
 
 public sealed class CriarPrescricaoUseCase : ICriarPrescricaoUseCase
 {
     private readonly IPacienteRepository _pacientes;
     private readonly IMedicamentoRepository _medicamentos;
-    private readonly IPrescricaoRepository _prescricoes;
+    private readonly IPrescricaoWriteRepository _prescricoes;
     private readonly IUnitOfWork _unitOfWork;
 
     public CriarPrescricaoUseCase(
         IPacienteRepository pacientes,
         IMedicamentoRepository medicamentos,
-        IPrescricaoRepository prescricoes,
+        IPrescricaoWriteRepository prescricoes,
         IUnitOfWork unitOfWork)
     {
         _pacientes = pacientes;
@@ -68,52 +69,11 @@ public sealed class CriarPrescricaoUseCase : ICriarPrescricaoUseCase
                     throw new ArgumentException(
                         "Informe pelo menos um medicamento.");
 
-                var itens = new List<PrescricaoItem>();
-
-                foreach (var entrada in request.Itens)
-                {
-                    ArgumentNullException.ThrowIfNull(entrada);
-
-                    var nome = entrada.NomeMedicamento;
-
-                    if (entrada.MedicamentoId is Guid medicamentoId)
-                    {
-                        if (medicamentoId == Guid.Empty)
-                            throw new ArgumentException(
-                                "Identificador de medicamento invalido.");
-
-                        var medicamento = await _medicamentos
-                            .ObterPorIdAsync(
-                                medicamentoId,
-                                cancellationToken);
-
-                        if (medicamento is null)
-                            throw new KeyNotFoundException(
-                                "Medicamento nao encontrado.");
-
-                        // O catalogo e a fonte do nome cadastrado.
-                        nome = medicamento.Nome;
-                    }
-
-                    var item = new PrescricaoItem(
-                        medicamentoId: entrada.MedicamentoId,
-                        nomeMedicamento: nome,
-                        formaFarmaceutica: entrada.FormaFarmaceutica,
-                        dose: entrada.Dose,
-                        unidadeMedida: entrada.UnidadeMedida,
-                        frequencia: entrada.Frequencia,
-                        inicioTratamento: entrada.InicioTratamento,
-                        duracaoTratamentoDias: entrada.DuracaoTratamentoDias,
-                        usoContinuo: entrada.UsoContinuo,
-                        viaAdministracao: entrada.ViaAdministracao,
-                        prazoUtilizacao: entrada.PrazoUtilizacao,
-                        observacao: entrada.Observacao
-                    );
-
-                    itens.Add(item);
-                }
-
-                prescricao = Prescricao.CriarEstruturada(
+                var itens = await PrescricaoItemFactory.CriarAsync(
+                    request.Itens,
+                    _medicamentos,
+                    cancellationToken);
+prescricao = Prescricao.CriarEstruturada(
                     request.PacienteId,
                     itens);
 

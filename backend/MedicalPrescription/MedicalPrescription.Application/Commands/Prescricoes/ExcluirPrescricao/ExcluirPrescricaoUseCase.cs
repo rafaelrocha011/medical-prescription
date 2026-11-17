@@ -1,15 +1,15 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
 
-namespace MedicalPrescription.Application.UseCases.Prescricoes.ExcluirPrescricao;
+namespace MedicalPrescription.Application.Commands.Prescricoes.ExcluirPrescricao;
 
 public sealed class ExcluirPrescricaoUseCase : IExcluirPrescricaoUseCase
 {
-    private readonly IPrescricaoRepository _repository;
+    private readonly IPrescricaoWriteRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
 
     public ExcluirPrescricaoUseCase(
-        IPrescricaoRepository repository,
+        IPrescricaoWriteRepository repository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
@@ -23,7 +23,7 @@ public sealed class ExcluirPrescricaoUseCase : IExcluirPrescricaoUseCase
         if (id == Guid.Empty)
             throw new ArgumentException("Prescricao invalida.");
 
-        var prescricao = await _repository.ObterPorIdAsync(
+        var prescricao = await _repository.ObterParaEscritaAsync(
             id, cancellationToken);
 
         if (prescricao is null)

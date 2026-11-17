@@ -3,9 +3,9 @@ using MedicalPrescription.Domain.Entities;
 
 namespace MedicalPrescription.Application.Abstractions.Persistence;
 
-public interface IPrescricaoRepository
+public interface IPrescricaoWriteRepository
 {
-    Task<Prescricao?> ObterPorIdAsync(
+    Task<Prescricao?> ObterParaEscritaAsync(
         Guid id,
         CancellationToken cancellationToken = default);
 
