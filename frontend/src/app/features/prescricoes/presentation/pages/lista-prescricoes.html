@@ -30,7 +30,6 @@
         <table>
           <thead>
             <tr>
-              <th scope="col">Prescri&ccedil;&atilde;o</th>
               <th scope="col">Paciente</th>
               <th scope="col">Tipo</th>
               <th scope="col">Data</th>
@@ -41,8 +40,7 @@
           <tbody>
             @for (item of prescricoes(); track item.id) {
               <tr>
-                <td [title]="item.id">{{ item.id.slice(0, 8) }}</td>
-                <td [title]="item.pacienteId">{{ item.pacienteId.slice(0, 8) }}</td>
+                <td>{{ item.nomePaciente }}</td>
                 <td>
                   <span class="tipo" [class.estruturada]="item.tipo === tipoEstruturada">
                     @if (item.tipo === tipoEstruturada) { Estruturada } @else { N&atilde;o estruturada }
@@ -66,7 +64,7 @@
               </tr>
               @if (idExpandido() === item.id) {
                 <tr class="linha-expandida">
-                  <td colspan="6">
+                  <td colspan="5">
                     <div class="detalhes" [id]="'detalhes-' + item.id" role="region"
                       [attr.aria-label]="'Detalhes da prescricao ' + item.id.slice(0, 8)">
                       @if (carregandoDetalhe()) {
@@ -76,7 +74,7 @@
                       } @else if (detalhe(); as p) {
                         <div class="resumo-detalhes">
                           <div><span>Identificador</span><strong>{{ p.id }}</strong></div>
-                          <div><span>Paciente</span><strong>{{ p.pacienteId }}</strong></div>
+                          <div><span>Paciente</span><strong>{{ p.nomePaciente }}</strong></div>
                           <div><span>Tipo</span><strong>
                             @if (p.tipo === tipoEstruturada) { Estruturada } @else { N&atilde;o estruturada }
                           </strong></div>

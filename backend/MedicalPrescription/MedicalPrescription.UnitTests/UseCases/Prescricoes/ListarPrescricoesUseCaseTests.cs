@@ -142,7 +142,7 @@ public class ListarPrescricoesUseCaseTests
             return Task.FromResult<PrescricaoDetalheDto?>(
                 new PrescricaoDetalheDto(
                     p.Id, p.PacienteId, p.Tipo, p.TextoLivre,
-                    p.CriadaEmUtc, itens));
+                    p.CriadaEmUtc, itens, "Paciente teste"));
         }
         public Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
             int pagina,
@@ -163,7 +163,7 @@ public class ListarPrescricoesUseCaseTests
                     x.PacienteId,
                     x.Tipo,
                     x.CriadaEmUtc,
-                    x.Itens.Count))
+                    x.Itens.Count, "Paciente teste"))
                 .ToArray();
 
             var resultado = new ResultadoPaginado<PrescricaoResumoDto>(
