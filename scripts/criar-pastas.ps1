@@ -1,327 +1,667 @@
 
 $ErrorActionPreference = "Stop"
 $raiz = "C:\Projetos\prescricao-medica"
-
 Set-Location $raiz
 
-# Localizar projetos
-$app = @(
-    Get-ChildItem $raiz -Filter "MedicalPrescription.Application.csproj" -Recurse -File |
-    Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
-)
+# ===========================================
+# 1. GITFLOW
+# ===========================================
 
-$tests = @(
-    Get-ChildItem $raiz -Filter "MedicalPrescription.UnitTests.csproj" -Recurse -File |
-    Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
-)
+$branch = (git branch --show-current).Trim()
 
-if ($app.Count -ne 1 -or $tests.Count -ne 1) {
-    throw "Nao foi possivel localizar Application e UnitTests."
+if ($branch -ne "feature/infra-mysql") {
+
+    if (git status --porcelain) {
+        throw "Existem alteracoes locais. Salve-as antes de trocar de branch."
+    }
+
+    git switch develop
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao acessar develop." }
+
+    git pull --ff-only origin develop
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao atualizar develop." }
+
+    $existe = git branch --list "feature/infra-mysql"
+
+    if ($existe) {
+        git switch feature/infra-mysql
+    }
+    else {
+        git switch -c feature/infra-mysql
+    }
+
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao acessar feature." }
 }
+
+# ===========================================
+# 2. LOCALIZAR OS PROJETOS
+# ===========================================
+
+function EncontrarProjeto([string]$nome) {
+    $arquivos = @(
+        Get-ChildItem $raiz -Filter "$nome.csproj" -Recurse -File |
+        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
+    )
+
+    if ($arquivos.Count -ne 1) {
+        throw "Projeto nao encontrado de forma unica: $nome"
+    }
+
+    return $arquivos[0]
+}
+
+$infra = EncontrarProjeto "MedicalPrescription.Infrastructure"
+$api = EncontrarProjeto "MedicalPrescription.Api"
+$tests = EncontrarProjeto "MedicalPrescription.UnitTests"
+
+$base = $infra.DirectoryName
 
 function CriarArquivo {
     param(
-        [string]$Base,
-        [string]$Relativo,
+        [string]$Caminho,
         [string]$Conteudo
     )
 
-    $destino = Join-Path $Base $Relativo
-    $diretorio = Split-Path $destino -Parent
+    $pasta = Split-Path $Caminho -Parent
+    New-Item -ItemType Directory -Path $pasta -Force | Out-Null
 
-    New-Item -ItemType Directory -Force -Path $diretorio | Out-Null
-
-    if (Test-Path $destino) {
-        $atual = Get-Content $destino -Raw
+    if (Test-Path $Caminho) {
+        $atual = Get-Content $Caminho -Raw
 
         if (-not [string]::IsNullOrWhiteSpace($atual)) {
-            Write-Host "JA EXISTE: $Relativo" -ForegroundColor Yellow
+            Write-Host "PRESERVADO: $Caminho" -ForegroundColor Yellow
             return
         }
     }
 
-    Set-Content -Path $destino -Value $Conteudo -Encoding UTF8
-
-    Write-Host "CRIADO: $Relativo" -ForegroundColor Green
+    Set-Content -Path $Caminho -Value $Conteudo -Encoding UTF8
+    Write-Host "CRIADO: $Caminho" -ForegroundColor Green
 }
 
-$base = $app[0].DirectoryName
+# ===========================================
+# 3. INSTALAR PACOTES
+# ===========================================
 
-# DTO para a listagem
-CriarArquivo $base "DTOs\Prescricoes\PrescricaoResumoDto.cs" @'
-using MedicalPrescription.Domain.Enums;
+dotnet add $infra.FullName package Pomelo.EntityFrameworkCore.MySql --version 9.0.0
+if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar Pomelo." }
 
-namespace MedicalPrescription.Application.DTOs.Prescricoes;
+dotnet add $api.FullName package Microsoft.EntityFrameworkCore.Design --version 9.0.23
+if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar EF Design." }
 
-public sealed record PrescricaoResumoDto(
-    Guid Id,
-    Guid PacienteId,
-    TipoPrescricao Tipo,
-    DateTime CriadaEmUtc,
-    int QuantidadeMedicamentos
-);
-'@
+# ===========================================
+# 4. DB CONTEXT + UNIT OF WORK
+# ===========================================
 
-# DTO generico de paginacao
-CriarArquivo $base "DTOs\Prescricoes\ResultadoPaginado.cs" @'
-namespace MedicalPrescription.Application.DTOs.Prescricoes;
-
-public sealed record ResultadoPaginado<T>(
-    IReadOnlyList<T> Itens,
-    int Pagina,
-    int TamanhoPagina,
-    int TotalRegistros)
-{
-    public int TotalPaginas =>
-        TamanhoPagina > 0
-            ? (int)Math.Ceiling(
-                (double)TotalRegistros / TamanhoPagina)
-            : 0;
-}
-'@
-
-# Contrato de consulta para a Infrastructure
-CriarArquivo $base "Abstractions\Persistence\IPrescricaoConsultaRepository.cs" @'
-using MedicalPrescription.Application.DTOs.Prescricoes;
-
-namespace MedicalPrescription.Application.Abstractions.Persistence;
-
-public interface IPrescricaoConsultaRepository
-{
-    Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
-        int pagina,
-        int tamanhoPagina,
-        CancellationToken cancellationToken = default);
-}
-'@
-
-# Interface do Use Case
-CriarArquivo $base "Abstractions\UseCases\Prescricoes\IListarPrescricoesUseCase.cs" @'
-using MedicalPrescription.Application.DTOs.Prescricoes;
-
-namespace MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
-
-public interface IListarPrescricoesUseCase
-{
-    Task<ResultadoPaginado<PrescricaoResumoDto>> ExecutarAsync(
-        int pagina = 1,
-        int tamanhoPagina = 20,
-        CancellationToken cancellationToken = default);
-}
-'@
-
-# Implementacao do Use Case
-CriarArquivo $base "UseCases\Prescricoes\ListarPrescricoes\ListarPrescricoesUseCase.cs" @'
+CriarArquivo (Join-Path $base "Persistence\Context\MedicalPrescriptionDbContext.cs") @'
 using MedicalPrescription.Application.Abstractions.Persistence;
-using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
-using MedicalPrescription.Application.DTOs.Prescricoes;
+using MedicalPrescription.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
-namespace MedicalPrescription.Application.UseCases.Prescricoes.ListarPrescricoes;
+namespace MedicalPrescription.Infrastructure.Persistence.Context;
 
-public sealed class ListarPrescricoesUseCase
-    : IListarPrescricoesUseCase
+public sealed class MedicalPrescriptionDbContext
+    : DbContext, IUnitOfWork
 {
-    private const int TamanhoMaximoPagina = 100;
-
-    private readonly IPrescricaoConsultaRepository _repository;
-
-    public ListarPrescricoesUseCase(
-        IPrescricaoConsultaRepository repository)
+    public MedicalPrescriptionDbContext(
+        DbContextOptions<MedicalPrescriptionDbContext> options)
+        : base(options)
     {
-        _repository = repository;
     }
 
-    public async Task<ResultadoPaginado<PrescricaoResumoDto>> ExecutarAsync(
-        int pagina = 1,
-        int tamanhoPagina = 20,
+    public DbSet<Paciente> Pacientes => Set<Paciente>();
+    public DbSet<Medicamento> Medicamentos => Set<Medicamento>();
+    public DbSet<Prescricao> Prescricoes => Set<Prescricao>();
+    public DbSet<PrescricaoItem> PrescricaoItens => Set<PrescricaoItem>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(MedicalPrescriptionDbContext).Assembly);
+
+        base.OnModelCreating(modelBuilder);
+    }
+}
+'@
+
+# ===========================================
+# 5. ENTITY CONFIGURATIONS
+# ===========================================
+
+CriarArquivo (Join-Path $base "Persistence\Configurations\PacienteConfiguration.cs") @'
+using MedicalPrescription.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace MedicalPrescription.Infrastructure.Persistence.Configurations;
+
+public sealed class PacienteConfiguration
+    : IEntityTypeConfiguration<Paciente>
+{
+    public void Configure(EntityTypeBuilder<Paciente> builder)
+    {
+        builder.ToTable("pacientes");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Id)
+            .HasColumnName("id")
+            .ValueGeneratedNever();
+
+        builder.Property(x => x.NomeCompleto)
+            .HasColumnName("nome_completo")
+            .HasMaxLength(200)
+            .IsRequired();
+    }
+}
+'@
+
+CriarArquivo (Join-Path $base "Persistence\Configurations\MedicamentoConfiguration.cs") @'
+using MedicalPrescription.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace MedicalPrescription.Infrastructure.Persistence.Configurations;
+
+public sealed class MedicamentoConfiguration
+    : IEntityTypeConfiguration<Medicamento>
+{
+    public void Configure(EntityTypeBuilder<Medicamento> builder)
+    {
+        builder.ToTable("medicamentos");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Id)
+            .HasColumnName("id")
+            .ValueGeneratedNever();
+
+        builder.Property(x => x.Nome)
+            .HasColumnName("nome")
+            .HasMaxLength(200)
+            .IsRequired();
+    }
+}
+'@
+
+CriarArquivo (Join-Path $base "Persistence\Configurations\PrescricaoConfiguration.cs") @'
+using MedicalPrescription.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace MedicalPrescription.Infrastructure.Persistence.Configurations;
+
+public sealed class PrescricaoConfiguration
+    : IEntityTypeConfiguration<Prescricao>
+{
+    public void Configure(EntityTypeBuilder<Prescricao> builder)
+    {
+        builder.ToTable("prescricoes");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Id)
+            .HasColumnName("id")
+            .ValueGeneratedNever();
+
+        builder.Property(x => x.PacienteId)
+            .HasColumnName("paciente_id")
+            .IsRequired();
+
+        builder.Property(x => x.Tipo)
+            .HasColumnName("tipo")
+            .HasConversion<int>()
+            .IsRequired();
+
+        builder.Property(x => x.TextoLivre)
+            .HasColumnName("texto_livre")
+            .HasColumnType("longtext");
+
+        builder.Property(x => x.CriadaEmUtc)
+            .HasColumnName("criada_em_utc")
+            .HasColumnType("datetime(6)")
+            .IsRequired();
+
+        builder.HasOne<Paciente>()
+            .WithMany()
+            .HasForeignKey(x => x.PacienteId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(x => x.Itens)
+            .WithOne()
+            .HasForeignKey(x => x.PrescricaoId)
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(x => x.Itens)
+            .HasField("_itens")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasIndex(x => x.CriadaEmUtc);
+    }
+}
+'@
+
+CriarArquivo (Join-Path $base "Persistence\Configurations\PrescricaoItemConfiguration.cs") @'
+using MedicalPrescription.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace MedicalPrescription.Infrastructure.Persistence.Configurations;
+
+public sealed class PrescricaoItemConfiguration
+    : IEntityTypeConfiguration<PrescricaoItem>
+{
+    public void Configure(EntityTypeBuilder<PrescricaoItem> builder)
+    {
+        builder.ToTable("prescricao_itens");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Id)
+            .HasColumnName("id")
+            .ValueGeneratedNever();
+
+        builder.Property(x => x.PrescricaoId)
+            .HasColumnName("prescricao_id")
+            .IsRequired();
+
+        builder.Property(x => x.MedicamentoId)
+            .HasColumnName("medicamento_id");
+
+        builder.HasOne<Medicamento>()
+            .WithMany()
+            .HasForeignKey(x => x.MedicamentoId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(x => x.NomeMedicamento)
+            .HasColumnName("nome_medicamento")
+            .HasMaxLength(200)
+            .IsRequired();
+
+        builder.Property(x => x.FormaFarmaceutica)
+            .HasColumnName("forma_farmaceutica")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.OwnsOne(x => x.Dosagem, dosagem =>
+        {
+            dosagem.Property(x => x.Quantidade)
+                .HasColumnName("dose")
+                .HasPrecision(12, 3)
+                .IsRequired();
+
+            dosagem.Property(x => x.UnidadeMedida)
+                .HasColumnName("unidade_medida")
+                .HasMaxLength(20)
+                .IsRequired();
+        });
+
+        builder.Navigation(x => x.Dosagem).IsRequired();
+
+        builder.Property(x => x.Frequencia)
+            .HasColumnName("frequencia")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(x => x.InicioTratamento)
+            .HasColumnName("inicio_tratamento")
+            .HasColumnType("date")
+            .IsRequired();
+
+        builder.Property(x => x.DuracaoTratamentoDias)
+            .HasColumnName("duracao_tratamento_dias");
+
+        builder.Property(x => x.UsoContinuo)
+            .HasColumnName("uso_continuo")
+            .IsRequired();
+
+        builder.Property(x => x.ViaAdministracao)
+            .HasColumnName("via_administracao")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(x => x.PrazoUtilizacao)
+            .HasColumnName("prazo_utilizacao")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(x => x.Observacao)
+            .HasColumnName("observacao")
+            .HasColumnType("longtext");
+    }
+}
+'@
+
+# ===========================================
+# 6. REPOSITORIES
+# ===========================================
+
+CriarArquivo (Join-Path $base "Persistence\Repositories\PacienteRepository.cs") @'
+using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Infrastructure.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
+
+namespace MedicalPrescription.Infrastructure.Persistence.Repositories;
+
+public sealed class PacienteRepository : IPacienteRepository
+{
+    private readonly MedicalPrescriptionDbContext _context;
+
+    public PacienteRepository(MedicalPrescriptionDbContext context)
+    {
+        _context = context;
+    }
+
+    public Task<bool> ExisteAsync(
+        Guid id,
         CancellationToken cancellationToken = default)
     {
-        if (pagina < 1)
-            throw new ArgumentOutOfRangeException(
-                nameof(pagina),
-                "A pagina deve ser maior ou igual a 1.");
+        return _context.Pacientes
+            .AsNoTracking()
+            .AnyAsync(p => p.Id == id, cancellationToken);
+    }
+}
+'@
 
-        if (tamanhoPagina < 1 || tamanhoPagina > TamanhoMaximoPagina)
-            throw new ArgumentOutOfRangeException(
-                nameof(tamanhoPagina),
-                "O tamanho da pagina deve estar entre 1 e 100.");
+CriarArquivo (Join-Path $base "Persistence\Repositories\MedicamentoRepository.cs") @'
+using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Domain.Entities;
+using MedicalPrescription.Infrastructure.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
 
-        return await _repository.ListarAsync(
-            pagina,
-            tamanhoPagina,
+namespace MedicalPrescription.Infrastructure.Persistence.Repositories;
+
+public sealed class MedicamentoRepository : IMedicamentoRepository
+{
+    private readonly MedicalPrescriptionDbContext _context;
+
+    public MedicamentoRepository(MedicalPrescriptionDbContext context)
+    {
+        _context = context;
+    }
+
+    public Task<Medicamento?> ObterPorIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.Medicamentos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                m => m.Id == id,
+                cancellationToken);
+    }
+}
+'@
+
+CriarArquivo (Join-Path $base "Persistence\Repositories\PrescricaoRepository.cs") @'
+using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Domain.Entities;
+using MedicalPrescription.Infrastructure.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
+
+namespace MedicalPrescription.Infrastructure.Persistence.Repositories;
+
+public sealed class PrescricaoRepository : IPrescricaoRepository
+{
+    private readonly MedicalPrescriptionDbContext _context;
+
+    public PrescricaoRepository(MedicalPrescriptionDbContext context)
+    {
+        _context = context;
+    }
+
+    public Task<Prescricao?> ObterPorIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.Prescricoes
+            .Include(p => p.Itens)
+            .FirstOrDefaultAsync(
+                p => p.Id == id,
+                cancellationToken);
+    }
+
+    public async Task AdicionarAsync(
+        Prescricao prescricao,
+        CancellationToken cancellationToken = default)
+    {
+        await _context.Prescricoes.AddAsync(
+            prescricao,
             cancellationToken);
     }
+
+    public void Remover(Prescricao prescricao)
+    {
+        _context.Prescricoes.Remove(prescricao);
+    }
 }
 '@
 
-# Testes unitarios
-CriarArquivo $tests[0].DirectoryName "UseCases\Prescricoes\ListarPrescricoesUseCaseTests.cs" @'
+CriarArquivo (Join-Path $base "Persistence\Repositories\PrescricaoConsultaRepository.cs") @'
 using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.DTOs.Prescricoes;
-using MedicalPrescription.Application.UseCases.Prescricoes.ListarPrescricoes;
-using MedicalPrescription.Domain.Entities;
-using MedicalPrescription.Domain.Enums;
-using Xunit;
+using MedicalPrescription.Infrastructure.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
 
-namespace MedicalPrescription.UnitTests.UseCases.Prescricoes;
+namespace MedicalPrescription.Infrastructure.Persistence.Repositories;
 
-public class ListarPrescricoesUseCaseTests
+public sealed class PrescricaoConsultaRepository
+    : IPrescricaoConsultaRepository
 {
-    private readonly FakeConsultaRepository _repository = new();
-    private readonly ListarPrescricoesUseCase _useCase;
+    private readonly MedicalPrescriptionDbContext _context;
 
-    public ListarPrescricoesUseCaseTests()
+    public PrescricaoConsultaRepository(
+        MedicalPrescriptionDbContext context)
     {
-        _useCase = new ListarPrescricoesUseCase(_repository);
+        _context = context;
     }
 
-    [Fact]
-    public async Task Listar_PrimeiraPagina_DeveRetornarDadosPaginados()
-    {
-        AdicionarPrescricoes(3);
-
-        var resultado = await _useCase.ExecutarAsync(1, 2);
-
-        Assert.Equal(2, resultado.Itens.Count);
-        Assert.Equal(3, resultado.TotalRegistros);
-        Assert.Equal(2, resultado.TotalPaginas);
-        Assert.Equal(1, resultado.Pagina);
-        Assert.Equal(1, _repository.Chamadas);
-    }
-
-    [Fact]
-    public async Task Listar_SegundaPagina_DeveRetornarRegistroRestante()
-    {
-        AdicionarPrescricoes(3);
-
-        var resultado = await _useCase.ExecutarAsync(2, 2);
-
-        Assert.Single(resultado.Itens);
-        Assert.Equal(3, resultado.TotalRegistros);
-        Assert.Equal(2, resultado.TotalPaginas);
-        Assert.Equal(2, resultado.Pagina);
-    }
-
-    [Fact]
-    public async Task Listar_SemRegistros_DeveRetornarListaVazia()
-    {
-        var resultado = await _useCase.ExecutarAsync();
-
-        Assert.Empty(resultado.Itens);
-        Assert.Equal(0, resultado.TotalRegistros);
-        Assert.Equal(0, resultado.TotalPaginas);
-    }
-
-    [Theory]
-    [InlineData(0, 20)]
-    [InlineData(-1, 20)]
-    [InlineData(1, 0)]
-    [InlineData(1, 101)]
-    public async Task Listar_ParametrosInvalidos_DeveRejeitar(
+    public async Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
         int pagina,
-        int tamanhoPagina)
+        int tamanhoPagina,
+        CancellationToken cancellationToken = default)
     {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => _useCase.ExecutarAsync(pagina, tamanhoPagina));
+        var query = _context.Prescricoes.AsNoTracking();
 
-        Assert.Equal(0, _repository.Chamadas);
-    }
+        var total = await query.CountAsync(cancellationToken);
 
-    [Fact]
-    public async Task Listar_Estruturada_DeveInformarQuantidadeMedicamentos()
-    {
-        var item = new PrescricaoItem(
-            medicamentoId: null,
-            nomeMedicamento: "Medicamento manipulado",
-            formaFarmaceutica: "Comprimido",
-            dose: 500,
-            unidadeMedida: "mg",
-            frequencia: "A cada 8 horas",
-            inicioTratamento: new DateOnly(2026, 11, 17),
-            duracaoTratamentoDias: 7,
-            usoContinuo: false,
-            viaAdministracao: "Oral",
-            prazoUtilizacao: "7 dias");
+        var itens = await query
+            .OrderByDescending(p => p.CriadaEmUtc)
+            .ThenBy(p => p.Id)
+            .Skip(checked((pagina - 1) * tamanhoPagina))
+            .Take(tamanhoPagina)
+            .Select(p => new PrescricaoResumoDto(
+                p.Id,
+                p.PacienteId,
+                p.Tipo,
+                p.CriadaEmUtc,
+                p.Itens.Count))
+            .ToListAsync(cancellationToken);
 
-        var prescricao = Prescricao.CriarEstruturada(
-            Guid.NewGuid(),
-            new[] { item });
-
-        _repository.Adicionar(prescricao);
-
-        var resultado = await _useCase.ExecutarAsync();
-
-        var resumo = Assert.Single(resultado.Itens);
-
-        Assert.Equal(TipoPrescricao.Estruturada, resumo.Tipo);
-        Assert.Equal(1, resumo.QuantidadeMedicamentos);
-    }
-
-    private void AdicionarPrescricoes(int quantidade)
-    {
-        for (var i = 0; i < quantidade; i++)
-        {
-            _repository.Adicionar(
-                Prescricao.CriarNaoEstruturada(
-                    Guid.NewGuid(),
-                    $"Prescricao {i + 1}"));
-        }
-    }
-
-    private sealed class FakeConsultaRepository
-        : IPrescricaoConsultaRepository
-    {
-        private readonly List<Prescricao> _dados = new();
-
-        public int Chamadas { get; private set; }
-
-        public void Adicionar(Prescricao prescricao)
-        {
-            _dados.Add(prescricao);
-        }
-
-        public Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
-            int pagina,
-            int tamanhoPagina,
-            CancellationToken cancellationToken = default)
-        {
-            Chamadas++;
-
-            var total = _dados.Count;
-
-            var itens = _dados
-                .OrderByDescending(x => x.CriadaEmUtc)
-                .ThenBy(x => x.Id)
-                .Skip((pagina - 1) * tamanhoPagina)
-                .Take(tamanhoPagina)
-                .Select(x => new PrescricaoResumoDto(
-                    x.Id,
-                    x.PacienteId,
-                    x.Tipo,
-                    x.CriadaEmUtc,
-                    x.Itens.Count))
-                .ToArray();
-
-            var resultado = new ResultadoPaginado<PrescricaoResumoDto>(
-                itens,
-                pagina,
-                tamanhoPagina,
-                total);
-
-            return Task.FromResult(resultado);
-        }
+        return new ResultadoPaginado<PrescricaoResumoDto>(
+            itens,
+            pagina,
+            tamanhoPagina,
+            total);
     }
 }
 '@
 
-Write-Host ""
-Write-Host "Executando testes..." -ForegroundColor Cyan
+# ===========================================
+# 7. DEPENDENCY INJECTION
+# ===========================================
 
-dotnet test $tests[0].FullName
+CriarArquivo (Join-Path $base "DependencyInjection.cs") @'
+using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Infrastructure.Persistence.Context;
+using MedicalPrescription.Infrastructure.Persistence.Repositories;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
+namespace MedicalPrescription.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString =
+            configuration.GetConnectionString("MySql");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "ConnectionStrings:MySql nao foi configurada.");
+        }
+
+        services.AddDbContext<MedicalPrescriptionDbContext>(
+            options => options.UseMySql(
+                connectionString,
+                new MySqlServerVersion(new Version(8, 4, 0))));
+
+        services.AddScoped<IUnitOfWork>(
+            provider => provider.GetRequiredService<
+                MedicalPrescriptionDbContext>());
+
+        services.AddScoped<
+            IPacienteRepository,
+            PacienteRepository>();
+
+        services.AddScoped<
+            IMedicamentoRepository,
+            MedicamentoRepository>();
+
+        services.AddScoped<
+            IPrescricaoRepository,
+            PrescricaoRepository>();
+
+        services.AddScoped<
+            IPrescricaoConsultaRepository,
+            PrescricaoConsultaRepository>();
+
+        return services;
+    }
+}
+'@
+
+# ===========================================
+# 8. CONFIGURACAO DO MYSQL
+# ===========================================
+
+$gitignore = Join-Path $raiz ".gitignore"
+
+if (-not (Test-Path $gitignore)) {
+    throw "Arquivo .gitignore nao encontrado."
+}
+
+git check-ignore -q .env
+
+if ($LASTEXITCODE -ne 0) {
+    throw "O .env nao esta protegido pelo .gitignore."
+}
+
+CriarArquivo (Join-Path $raiz ".env.example") @'
+MYSQL_ROOT_PASSWORD=substituir_por_senha_local
+MYSQL_DATABASE=medical_prescription
+MYSQL_USER=medical_user
+MYSQL_PASSWORD=substituir_por_senha_local
+MYSQL_PORT=3307
+'@
+
+function NovaSenha {
+    $bytes = New-Object byte[] 24
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+
+    try {
+        $rng.GetBytes($bytes)
+    }
+    finally {
+        $rng.Dispose()
+    }
+
+    return ([BitConverter]::ToString($bytes)).Replace("-", "")
+}
+
+$envLocal = Join-Path $raiz ".env"
+
+if (-not (Test-Path $envLocal)) {
+    $senhaRoot = NovaSenha
+    $senhaApp = NovaSenha
+
+    $conteudoEnv = @"
+MYSQL_ROOT_PASSWORD=$senhaRoot
+MYSQL_DATABASE=medical_prescription
+MYSQL_USER=medical_user
+MYSQL_PASSWORD=$senhaApp
+MYSQL_PORT=3307
+"@
+
+    Set-Content $envLocal $conteudoEnv -Encoding UTF8
+    Write-Host "CRIADO: .env com senhas locais geradas" -ForegroundColor Green
+}
+
+CriarArquivo (Join-Path $raiz "docker-compose.yml") @'
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Obrigatorio}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Obrigatorio}
+      MYSQL_USER: ${MYSQL_USER:?Obrigatorio}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Obrigatorio}
+
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+volumes:
+  mysql_data:
+'@
+
+# ===========================================
+# 9. BUILD E TESTES
+# ===========================================
+
+Write-Host "`nCompilando Infrastructure..." -ForegroundColor Cyan
+
+dotnet build $infra.FullName
+if ($LASTEXITCODE -ne 0) {
+    throw "Falha na compilacao da Infrastructure."
+}
+
+Write-Host "`nExecutando testes..." -ForegroundColor Cyan
+
+dotnet test $tests.FullName
 if ($LASTEXITCODE -ne 0) {
     throw "Falha na execucao dos testes."
 }
 
-Write-Host ""
-Write-Host "Use Case de listagem implementado com sucesso!" -ForegroundColor Green
+# ===========================================
+# 10. INICIAR MYSQL
+# ===========================================
+
+Write-Host "`nIniciando MySQL no Docker..." -ForegroundColor Cyan
+
+docker compose up -d mysql
+if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao iniciar o MySQL."
+}
+
+docker compose ps
+
+Write-Host "`nInfrastructure criada e validada!" -ForegroundColor Green
