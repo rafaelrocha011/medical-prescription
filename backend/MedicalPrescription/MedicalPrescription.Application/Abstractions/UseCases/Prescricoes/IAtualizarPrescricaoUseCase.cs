@@ -1,6 +1,11 @@
-﻿namespace MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
+﻿using MedicalPrescription.Application.DTOs.Prescricoes;
+
+namespace MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
 
 public interface IAtualizarPrescricaoUseCase
 {
-    // Contrato a definir na implementacao do Use Case.
+    Task ExecutarAsync(
+        Guid id,
+        AtualizarPrescricaoRequest request,
+        CancellationToken cancellationToken = default);
 }
