@@ -1,4 +1,9 @@
+﻿using MedicalPrescription.Infrastructure;
+using MedicalPrescription.Api.Configuration;
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddApplicationUseCases();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add services to the container.
 
@@ -21,3 +26,4 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
