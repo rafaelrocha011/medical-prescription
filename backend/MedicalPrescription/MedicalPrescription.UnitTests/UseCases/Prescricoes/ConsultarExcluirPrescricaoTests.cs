@@ -1,6 +1,7 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
-using MedicalPrescription.Application.UseCases.Prescricoes.ObterPrescricao;
-using MedicalPrescription.Application.UseCases.Prescricoes.ExcluirPrescricao;
+using MedicalPrescription.Application.DTOs.Prescricoes;
+using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Queries.Prescricoes.ObterPrescricao;
+using MedicalPrescription.Application.Commands.Prescricoes.ExcluirPrescricao;
 using MedicalPrescription.Domain.Entities;
 using MedicalPrescription.Domain.Enums;
 using Xunit;
@@ -18,7 +19,7 @@ public class ConsultarExcluirPrescricaoTests
 
         await repo.AdicionarAsync(prescricao);
 
-        var useCase = new ObterPrescricaoUseCase(repo);
+        var useCase = new ObterPrescricaoUseCase(new FakeReadRepository(repo));
         var resultado = await useCase.ExecutarAsync(prescricao.Id);
 
         Assert.Equal(prescricao.Id, resultado.Id);
@@ -50,7 +51,7 @@ public class ConsultarExcluirPrescricaoTests
 
         await repo.AdicionarAsync(prescricao);
 
-        var resultado = await new ObterPrescricaoUseCase(repo)
+        var resultado = await new ObterPrescricaoUseCase(new FakeReadRepository(repo))
             .ExecutarAsync(prescricao.Id);
 
         var medicamento = Assert.Single(resultado.Itens);
@@ -63,7 +64,7 @@ public class ConsultarExcluirPrescricaoTests
     [Fact]
     public async Task ObterInexistente_DeveLancarExcecao()
     {
-        var useCase = new ObterPrescricaoUseCase(new FakeRepository());
+        var useCase = new ObterPrescricaoUseCase(new FakeReadRepository(new FakeRepository()));
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => useCase.ExecutarAsync(Guid.NewGuid()));
@@ -83,7 +84,7 @@ public class ConsultarExcluirPrescricaoTests
         var useCase = new ExcluirPrescricaoUseCase(repo, unitOfWork);
         await useCase.ExecutarAsync(prescricao.Id);
 
-        Assert.Null(await repo.ObterPorIdAsync(prescricao.Id));
+        Assert.Null(await repo.ObterParaEscritaAsync(prescricao.Id));
         Assert.Equal(1, unitOfWork.Chamadas);
     }
 
@@ -101,11 +102,11 @@ public class ConsultarExcluirPrescricaoTests
         Assert.Equal(0, unitOfWork.Chamadas);
     }
 
-    private sealed class FakeRepository : IPrescricaoRepository
+    private sealed class FakeRepository : IPrescricaoWriteRepository
     {
         private readonly Dictionary<Guid, Prescricao> _dados = new();
 
-        public Task<Prescricao?> ObterPorIdAsync(
+        public Task<Prescricao?> ObterParaEscritaAsync(
             Guid id,
             CancellationToken cancellationToken = default)
             => Task.FromResult(_dados.GetValueOrDefault(id));
@@ -122,6 +123,58 @@ public class ConsultarExcluirPrescricaoTests
             => _dados.Remove(prescricao.Id);
     }
 
+    private sealed class FakeReadRepository : IPrescricaoReadRepository
+    {
+        private readonly FakeRepository _write;
+
+        public FakeReadRepository(FakeRepository write)
+        {
+            _write = write;
+        }
+
+        public async Task<PrescricaoDetalheDto?> ObterPorIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            var p = await _write.ObterParaEscritaAsync(
+                id, cancellationToken);
+
+            if (p is null)
+                return null;
+
+            var itens = p.Itens.Select(i => new PrescricaoItemDto(
+                i.Id,
+                i.MedicamentoId,
+                i.NomeMedicamento,
+                i.FormaFarmaceutica,
+                i.Dosagem.Quantidade,
+                i.Dosagem.UnidadeMedida,
+                i.Frequencia,
+                i.InicioTratamento,
+                i.DuracaoTratamentoDias,
+                i.UsoContinuo,
+                i.ViaAdministracao,
+                i.PrazoUtilizacao,
+                i.Observacao)).ToArray();
+
+            return new PrescricaoDetalheDto(
+                p.Id,
+                p.PacienteId,
+                p.Tipo,
+                p.TextoLivre,
+                p.CriadaEmUtc,
+                itens);
+        }
+
+        public Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
+            int pagina,
+            int tamanhoPagina,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException(
+                "Este fake exercita somente a consulta de detalhes.");
+        }
+    }
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public int Chamadas { get; private set; }

@@ -1,4 +1,5 @@
-﻿
+using MedicalPrescription.Domain.Exceptions;
+
 using MedicalPrescription.Domain.Enums;
 
 namespace MedicalPrescription.Domain.Entities;
@@ -69,7 +70,7 @@ public class Prescricao
     public void AtualizarTextoLivre(string textoLivre)
     {
         if (Tipo != TipoPrescricao.NaoEstruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "A prescrição não permite texto livre.");
 
         if (string.IsNullOrWhiteSpace(textoLivre))
@@ -82,13 +83,13 @@ public class Prescricao
     public void AdicionarItem(PrescricaoItem item)
     {
         if (Tipo != TipoPrescricao.Estruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "Não é possível adicionar itens a uma prescrição não estruturada.");
 
         ArgumentNullException.ThrowIfNull(item);
 
         if (_itens.Any(i => i.Id == item.Id))
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "O item já pertence à prescrição.");
 
         item.VincularPrescricao(Id);
@@ -98,7 +99,7 @@ public class Prescricao
     public void SubstituirItens(IEnumerable<PrescricaoItem> itens)
     {
         if (Tipo != TipoPrescricao.Estruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "A prescricao nao e estruturada.");
 
         ArgumentNullException.ThrowIfNull(itens);
@@ -118,6 +119,13 @@ public class Prescricao
             throw new ArgumentException(
                 "A lista contem itens duplicados.");
 
+        // Validar todos os vinculos antes de alterar qualquer item.
+        if (novosItens.Any(item =>
+                item.PrescricaoId != Guid.Empty &&
+                item.PrescricaoId != Id))
+            throw new RegraNegocioException(
+                "Um item ja pertence a outra prescricao.");
+
         foreach (var item in novosItens)
             item.VincularPrescricao(Id);
 
@@ -127,17 +135,17 @@ public class Prescricao
     public void RemoverItem(Guid itemId)
     {
         if (Tipo != TipoPrescricao.Estruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "A prescrição não é estruturada.");
 
         var item = _itens.FirstOrDefault(i => i.Id == itemId);
 
         if (item is null)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "Item não encontrado.");
 
         if (_itens.Count == 1)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "Uma prescrição estruturada deve conter pelo menos um medicamento.");
 
         _itens.Remove(item);

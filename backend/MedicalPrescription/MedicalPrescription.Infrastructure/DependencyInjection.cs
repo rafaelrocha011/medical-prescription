@@ -1,4 +1,4 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Infrastructure.Persistence.Context;
 using MedicalPrescription.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -40,20 +40,17 @@ public static class DependencyInjection
             MedicamentoRepository>();
 
         services.AddScoped<
-            IPrescricaoRepository,
-            PrescricaoRepository>();
+            IPrescricaoWriteRepository,
+            PrescricaoWriteRepository>();
 
-        services.AddScoped<
-            IPrescricaoConsultaRepository,
-            PrescricaoConsultaRepository>();
+        services.AddScoped<PrescricaoReadRepository>();
 
-        services.AddScoped<IPacienteConsultaRepository, PacienteConsultaRepository>();
-        services.AddScoped<IMedicamentoConsultaRepository, MedicamentoConsultaRepository>();
-        services.AddScoped<
-            IPrescricaoODataConsultaRepository,
-            PrescricaoODataConsultaRepository>();
+        services.AddScoped<IPrescricaoReadRepository>(
+            sp => sp.GetRequiredService<PrescricaoReadRepository>());
+
+        services.AddScoped<IPrescricaoODataConsultaRepository>(
+            sp => sp.GetRequiredService<PrescricaoReadRepository>());
         return services;
     }
 }
-
 

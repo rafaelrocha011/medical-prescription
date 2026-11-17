@@ -1,18 +1,18 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
 using MedicalPrescription.Application.DTOs.Prescricoes;
 
-namespace MedicalPrescription.Application.UseCases.Prescricoes.ListarPrescricoes;
+namespace MedicalPrescription.Application.Queries.Prescricoes.ListarPrescricoes;
 
 public sealed class ListarPrescricoesUseCase
     : IListarPrescricoesUseCase
 {
     private const int TamanhoMaximoPagina = 100;
 
-    private readonly IPrescricaoConsultaRepository _repository;
+    private readonly IPrescricaoReadRepository _repository;
 
     public ListarPrescricoesUseCase(
-        IPrescricaoConsultaRepository repository)
+        IPrescricaoReadRepository repository)
     {
         _repository = repository;
     }

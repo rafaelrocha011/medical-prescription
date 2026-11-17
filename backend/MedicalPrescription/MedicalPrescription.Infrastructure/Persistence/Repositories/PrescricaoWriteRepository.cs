@@ -1,20 +1,20 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Domain.Entities;
 using MedicalPrescription.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedicalPrescription.Infrastructure.Persistence.Repositories;
 
-public sealed class PrescricaoRepository : IPrescricaoRepository
+public sealed class PrescricaoWriteRepository : IPrescricaoWriteRepository
 {
     private readonly MedicalPrescriptionDbContext _context;
 
-    public PrescricaoRepository(MedicalPrescriptionDbContext context)
+    public PrescricaoWriteRepository(MedicalPrescriptionDbContext context)
     {
         _context = context;
     }
 
-    public Task<Prescricao?> ObterPorIdAsync(
+    public Task<Prescricao?> ObterParaEscritaAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {

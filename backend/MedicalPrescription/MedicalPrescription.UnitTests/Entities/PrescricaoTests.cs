@@ -1,4 +1,5 @@
-﻿
+using MedicalPrescription.Domain.Exceptions;
+
 using MedicalPrescription.Domain.Entities;
 using MedicalPrescription.Domain.Enums;
 using Xunit;
@@ -94,7 +95,7 @@ public class PrescricaoTests
         var item = CriarItemValido();
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<RegraNegocioException>(() =>
             prescricao.AdicionarItem(item));
     }
 
@@ -109,7 +110,7 @@ public class PrescricaoTests
             new[] { item });
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<RegraNegocioException>(() =>
             prescricao.RemoverItem(item.Id));
 
         Assert.Single(prescricao.Itens);
@@ -122,7 +123,7 @@ public class PrescricaoTests
             PacienteId,
             new[] { CriarItemValido() });
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<RegraNegocioException>(() =>
             prescricao.AtualizarTextoLivre("Novo texto"));
     }
 
