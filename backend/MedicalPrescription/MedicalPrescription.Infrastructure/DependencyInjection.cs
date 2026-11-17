@@ -40,16 +40,16 @@ public static class DependencyInjection
             MedicamentoRepository>();
 
         services.AddScoped<
-            IPrescricaoRepository,
-            PrescricaoRepository>();
+            IPrescricaoWriteRepository,
+            PrescricaoWriteRepository>();
 
-        services.AddScoped<PrescricaoConsultaRepository>();
+        services.AddScoped<PrescricaoReadRepository>();
 
-        services.AddScoped<IPrescricaoConsultaRepository>(
-            sp => sp.GetRequiredService<PrescricaoConsultaRepository>());
+        services.AddScoped<IPrescricaoReadRepository>(
+            sp => sp.GetRequiredService<PrescricaoReadRepository>());
 
         services.AddScoped<IPrescricaoODataConsultaRepository>(
-            sp => sp.GetRequiredService<PrescricaoConsultaRepository>());
+            sp => sp.GetRequiredService<PrescricaoReadRepository>());
         return services;
     }
 }
