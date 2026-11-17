@@ -1,4 +1,6 @@
-﻿using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
+﻿using MedicalPrescription.Application.Abstractions.UseCases.Catalogos;
+using MedicalPrescription.Application.UseCases.Catalogos;
+using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
 using MedicalPrescription.Application.UseCases.Prescricoes.CriarPrescricao;
 using MedicalPrescription.Application.UseCases.Prescricoes.AtualizarPrescricao;
 using MedicalPrescription.Application.UseCases.Prescricoes.ObterPrescricao;
@@ -33,6 +35,9 @@ public static class ApplicationServicesRegistration
             IExcluirPrescricaoUseCase,
             ExcluirPrescricaoUseCase>();
 
+        services.AddScoped<IListarPacientesUseCase, ListarPacientesUseCase>();
+        services.AddScoped<IListarMedicamentosUseCase, ListarMedicamentosUseCase>();
         return services;
     }
 }
+

@@ -1,82 +1,62 @@
 
 $ErrorActionPreference = "Stop"
-$raiz = "C:\Projetos\prescricao-medica"
-Set-Location $raiz
 
-function EncontrarProjeto($nome) {
-    $projetos = @(
-        Get-ChildItem $raiz -Filter "$nome.csproj" -Recurse -File |
-        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
-    )
+$baseUrl = "http://localhost:5080"
 
-    if ($projetos.Count -ne 1) {
-        throw "Projeto nao encontrado: $nome"
+$consultas = @(
+    @{
+        Nome = "SERVICO ODATA"
+        Url = $baseUrl + '/odata'
+    },
+    @{
+        Nome = "TODAS AS PRESCRICOES"
+        Url = $baseUrl + '/odata/ConsultaPrescricoes'
+    },
+    @{
+        Nome = "FILTRAR PRESCRICOES ESTRUTURADAS"
+        Url = $baseUrl + '/odata/ConsultaPrescricoes?$filter=Tipo%20eq%202'
+    },
+    @{
+        Nome = "ORDENAR POR DATA"
+        Url = $baseUrl + '/odata/ConsultaPrescricoes?$orderby=CriadaEmUtc%20desc'
+    },
+    @{
+        Nome = "SELECIONAR CAMPOS"
+        Url = $baseUrl + '/odata/ConsultaPrescricoes?$select=Id,Tipo,QuantidadeMedicamentos'
+    },
+    @{
+        Nome = "LIMITAR RESULTADOS"
+        Url = $baseUrl + '/odata/ConsultaPrescricoes?$top=10'
+    },
+    @{
+        Nome = "CONTAR REGISTROS"
+        Url = $baseUrl + '/odata/ConsultaPrescricoes?$count=true'
     }
+)
 
-    return $projetos[0].FullName
-}
+foreach ($consulta in $consultas) {
 
-$api = EncontrarProjeto "MedicalPrescription.Api"
-$infra = EncontrarProjeto "MedicalPrescription.Infrastructure"
-$tests = EncontrarProjeto "MedicalPrescription.UnitTests"
+    Write-Host ""
+    Write-Host "================================" -ForegroundColor Cyan
+    Write-Host $consulta.Nome -ForegroundColor Cyan
+    Write-Host "================================" -ForegroundColor Cyan
 
-$env:ASPNETCORE_ENVIRONMENT = "Development"
+    try {
+        $resultado = Invoke-RestMethod `
+            -Uri $consulta.Url `
+            -Method Get `
+            -ErrorAction Stop
 
-# Compilar
-dotnet build $api
-if ($LASTEXITCODE -ne 0) { throw "Falha no build." }
+        $resultado | ConvertTo-Json -Depth 10
 
-# Executar testes
-dotnet test $tests
-if ($LASTEXITCODE -ne 0) { throw "Falha nos testes." }
-
-# Localizar migrations existentes
-$pastaMigrations = Join-Path (Split-Path $infra -Parent) `
-    "Persistence\Migrations"
-
-$migrations = @()
-
-if (Test-Path $pastaMigrations) {
-    $migrations = @(
-        Get-ChildItem $pastaMigrations -Filter "*_CriacaoInicial.cs" -File
-    )
-}
-
-# Criar migration somente se nao existir
-if ($migrations.Count -eq 0) {
-
-    dotnet ef migrations add CriacaoInicial `
-        --project $infra `
-        --startup-project $api `
-        --output-dir Persistence/Migrations
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Falha ao criar migration."
+        Write-Host "TESTE OK" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "TESTE FALHOU" -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        throw
     }
 }
 
-# Gerar script SQL
-$pastaDatabase = Join-Path $raiz "database"
-
-New-Item -ItemType Directory `
-    -Path $pastaDatabase -Force | Out-Null
-
-dotnet ef migrations script `
-    --project $infra `
-    --startup-project $api `
-    --output (Join-Path $pastaDatabase "schema.sql")
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Falha ao gerar script SQL."
-}
-
-# Aplicar migration no MySQL
-dotnet ef database update `
-    --project $infra `
-    --startup-project $api
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Falha ao atualizar o banco."
-}
-
-Write-Host "`nMigration aplicada com sucesso!" -ForegroundColor Green
+Write-Host ""
+Write-Host "TODOS OS TESTES ODATA PASSARAM!" -ForegroundColor Green
