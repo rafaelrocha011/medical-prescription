@@ -1,5 +1,4 @@
 using MedicalPrescription.Domain.Exceptions;
-
 using MedicalPrescription.Domain.Enums;
 
 namespace MedicalPrescription.Domain.Entities;
@@ -50,19 +49,40 @@ public class Prescricao
         Guid pacienteId,
         IEnumerable<PrescricaoItem> itens)
     {
-        if (itens is null)
-            throw new ArgumentNullException(nameof(itens));
+        ArgumentNullException.ThrowIfNull(itens);
+
+        if (pacienteId == Guid.Empty)
+            throw new ArgumentException(
+                "Paciente invÃ¡lido.", nameof(pacienteId));
+
+        var novosItens = itens.ToList();
+
+        if (novosItens.Count == 0)
+            throw new ArgumentException(
+                "A prescriÃ§Ã£o deve conter pelo menos um medicamento.",
+                nameof(itens));
+
+        if (novosItens.Any(item => item is null))
+            throw new ArgumentException(
+                "A lista contÃ©m um item invÃ¡lido.",
+                nameof(itens));
+
+        if (novosItens.Select(item => item.Id).Distinct().Count()
+            != novosItens.Count)
+            throw new ArgumentException(
+                "A lista contÃ©m itens duplicados.",
+                nameof(itens));
+
+        if (novosItens.Any(item => item.PrescricaoId != Guid.Empty))
+            throw new RegraNegocioException(
+                "Um item jÃ¡ pertence a outra prescriÃ§Ã£o.");
 
         var prescricao = new Prescricao(
             pacienteId,
             TipoPrescricao.Estruturada);
 
-        foreach (var item in itens)
+        foreach (var item in novosItens)
             prescricao.AdicionarItem(item);
-
-        if (prescricao._itens.Count == 0)
-            throw new ArgumentException(
-                "A prescrição deve conter pelo menos um medicamento.");
 
         return prescricao;
     }
@@ -132,6 +152,7 @@ public class Prescricao
         _itens.Clear();
         _itens.AddRange(novosItens);
     }
+
     public void RemoverItem(Guid itemId)
     {
         if (Tipo != TipoPrescricao.Estruturada)
