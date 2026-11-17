@@ -2,333 +2,408 @@
 $ErrorActionPreference = "Stop"
 
 $raiz = "C:\Projetos\prescricao-medica"
+$base = Join-Path $raiz "backend\MedicalPrescription"
+$nome = "MedicalPrescription.IntegrationTests"
+$pasta = Join-Path $base $nome
+$projeto = Join-Path $pasta "$nome.csproj"
+$solucao = Join-Path $base "MedicalPrescription.slnx"
+$unitTests = Join-Path $base "MedicalPrescription.UnitTests\MedicalPrescription.UnitTests.csproj"
+
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+
 Set-Location $raiz
 
 if ((git branch --show-current).Trim() -ne "refactor/backend") {
     throw "Execute na branch refactor/backend."
 }
 
-function EncontrarProjeto($nome) {
-    $projetos = @(
-        Get-ChildItem $raiz -Filter "$nome.csproj" -Recurse -File |
-        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
+if (-not (Test-Path $solucao)) {
+    throw "Solucao nao encontrada."
+}
+
+# Validar Docker Desktop
+docker info --format '{{.ServerVersion}}'
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Docker Desktop nao esta disponivel."
+}
+
+function Salvar($relativo, $conteudo) {
+    $destino = Join-Path $pasta $relativo
+
+    New-Item -ItemType Directory -Force `
+        -Path (Split-Path $destino -Parent) | Out-Null
+
+    [IO.File]::WriteAllText($destino, $conteudo, $utf8)
+
+    Write-Host "CRIADO: $relativo" -ForegroundColor Green
+}
+
+# Permitir nova execucao sem sobrescrever os testes.
+if (Test-Path $pasta) {
+    $esperados = @(
+        $projeto,
+        (Join-Path $pasta "MySqlFixture.cs"),
+        (Join-Path $pasta "PrescricaoPersistenciaTests.cs")
     )
 
-    if ($projetos.Count -ne 1) {
-        throw "Projeto nao encontrado de forma unica: $nome"
-    }
-
-    return $projetos[0]
-}
-
-$infra = EncontrarProjeto "MedicalPrescription.Infrastructure"
-$api = EncontrarProjeto "MedicalPrescription.Api"
-$tests = EncontrarProjeto "MedicalPrescription.UnitTests"
-
-$pasta = Join-Path $infra.DirectoryName "Persistence\Repositories"
-
-$consulta = Join-Path $pasta "PrescricaoConsultaRepository.cs"
-$odata = Join-Path $pasta "PrescricaoODataConsultaRepository.cs"
-$di = Join-Path $infra.DirectoryName "DependencyInjection.cs"
-
-foreach ($arquivo in @($consulta, $di)) {
-    if (-not (Test-Path $arquivo)) {
-        throw "Arquivo nao encontrado: $arquivo"
-    }
-}
-
-$utf8 = New-Object System.Text.UTF8Encoding($false)
-
-function Ler($arquivo) {
-    return [System.IO.File]::ReadAllText($arquivo)
-}
-
-function Salvar($arquivo, $conteudo) {
-    [System.IO.File]::WriteAllText($arquivo, $conteudo, $utf8)
-}
-
-function LimparEspacos($texto) {
-    # Remove espacos e tabs no final de cada linha
-    return [regex]::Replace(
-        $texto,
-        '(?m)[ \t]+(?=\r?$)',
-        ''
-    )
-}
-
-# ==========================================
-# 1. BACKUP
-# ==========================================
-
-$backup = Join-Path $env:TEMP (
-    "MedicalPrescription-PrescricaoRefactor-" +
-    (Get-Date -Format "yyyyMMddHHmmss")
-)
-
-New-Item -ItemType Directory -Force -Path $backup | Out-Null
-
-$originais = @{}
-
-foreach ($arquivo in @($consulta, $odata, $di)) {
-    if (Test-Path $arquivo) {
-        $destino = Join-Path $backup ([IO.Path]::GetFileName($arquivo))
-
-        Copy-Item $arquivo $destino -Force
-        $originais[$arquivo] = $destino
-    }
-}
-
-Write-Host "Backup: $backup" -ForegroundColor Cyan
-
-# ==========================================
-# 2. EXTRAIR METODO CONSULTAR DO ODATA
-# ==========================================
-
-function ExtrairMetodoConsultar($texto) {
-    $padrao = 'public\s+IQueryable<PrescricaoODataDto>\s+Consultar\s*\(\s*\)\s*\{'
-
-    $match = [regex]::Match($texto, $padrao)
-
-    if (-not $match.Success) {
-        throw "Metodo Consultar nao encontrado."
-    }
-
-    $inicio = $match.Index
-    $abertura = $texto.IndexOf('{', $inicio)
-    $nivel = 0
-
-    for ($j = $abertura; $j -lt $texto.Length; $j++) {
-        if ($texto[$j] -eq '{') {
-            $nivel++
-        }
-        elseif ($texto[$j] -eq '}') {
-            $nivel--
-
-            if ($nivel -eq 0) {
-                return $texto.Substring(
-                    $inicio,
-                    $j - $inicio + 1
-                )
-            }
+    foreach ($arquivo in $esperados) {
+        if (-not (Test-Path $arquivo)) {
+            throw "Projeto parcialmente criado: $arquivo"
         }
     }
 
-    throw "Nao foi possivel localizar o final do metodo Consultar."
+    Write-Host "Projeto de integracao ja existe. Preservando arquivos." `
+        -ForegroundColor Yellow
 }
+else {
 
-# ==========================================
-# 3. CONSOLIDAR REPOSITORIOS
-# ==========================================
+    New-Item -ItemType Directory -Force -Path $pasta | Out-Null
 
-try {
-    if (Test-Path $odata) {
+    # ================================================
+    # 1. PROJETO DE TESTES
+    # ================================================
 
-        $conteudoConsulta = Ler $consulta
-        $conteudoOData = Ler $odata
-        $conteudoDI = Ler $di
+    Salvar "$nome.csproj" @'
+<Project Sdk="Microsoft.NET.Sdk">
 
-        $padraoClasse =
-            'public\s+sealed\s+class\s+PrescricaoConsultaRepository\s*:\s*IPrescricaoConsultaRepository\b'
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
 
-        if ([regex]::Matches(
-            $conteudoConsulta, $padraoClasse
-        ).Count -ne 1) {
-            throw "Declaracao de PrescricaoConsultaRepository inesperada."
-        }
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Testcontainers.MySql" Version="4.16.0" />
+  </ItemGroup>
 
-        if ($conteudoConsulta -match '\bConsultar\s*\(') {
-            throw "Metodo Consultar ja existe no repositorio."
-        }
+  <ItemGroup>
+    <ProjectReference Include="..\MedicalPrescription.Infrastructure\MedicalPrescription.Infrastructure.csproj" />
+  </ItemGroup>
 
-        # Extrair o metodo da implementacao original
-        $metodo = ExtrairMetodoConsultar $conteudoOData
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
 
-        # Validar os registros anteriores da DI
-        $padraoDIConsulta =
-            'services\s*\.\s*AddScoped\s*<\s*IPrescricaoConsultaRepository\s*,\s*PrescricaoConsultaRepository\s*>\s*\(\s*\)\s*;'
-
-        $padraoDIOData =
-            'services\s*\.\s*AddScoped\s*<\s*IPrescricaoODataConsultaRepository\s*,\s*PrescricaoODataConsultaRepository\s*>\s*\(\s*\)\s*;'
-
-        if ([regex]::Matches(
-            $conteudoDI, $padraoDIConsulta
-        ).Count -ne 1) {
-            throw "Registro de consulta na DI nao encontrado."
-        }
-
-        if ([regex]::Matches(
-            $conteudoDI, $padraoDIOData
-        ).Count -ne 1) {
-            throw "Registro OData na DI nao encontrado."
-        }
-
-        # Atualizar interfaces implementadas
-        $conteudoConsulta = [regex]::Replace(
-            $conteudoConsulta,
-            $padraoClasse,
-            'public sealed class PrescricaoConsultaRepository : IPrescricaoConsultaRepository, IPrescricaoODataConsultaRepository'
-        )
-
-        # Garantir importacao do DTO
-        $usingDto =
-            "using MedicalPrescription.Application.DTOs.Prescricoes;"
-
-        if (-not $conteudoConsulta.Contains($usingDto)) {
-            $conteudoConsulta = $usingDto + "`r`n" + $conteudoConsulta
-        }
-
-        # Inserir o metodo Consultar antes do fechamento da classe
-        $posicao = $conteudoConsulta.LastIndexOf('}')
-
-        if ($posicao -lt 0) {
-            throw "Fechamento da classe nao encontrado."
-        }
-
-        $conteudoConsulta = $conteudoConsulta.Insert(
-            $posicao,
-            "`r`n    $metodo`r`n"
-        )
-
-        # Corrigir formatacao antes de salvar
-        $conteudoConsulta = LimparEspacos $conteudoConsulta
-
-        Salvar $consulta $conteudoConsulta
-
-        Write-Host "Repositorio de leitura consolidado." `
-            -ForegroundColor Green
-
-        # ==========================================
-        # 4. ATUALIZAR DEPENDENCY INJECTION
-        # ==========================================
-
-        $conteudoDI = [regex]::Replace(
-            $conteudoDI,
-            $padraoDIConsulta,
-            ''
-        )
-
-        $conteudoDI = [regex]::Replace(
-            $conteudoDI,
-            $padraoDIOData,
-            ''
-        )
-
-        $marcador = "        return services;"
-
-        if (-not $conteudoDI.Contains($marcador)) {
-            throw "Ponto de registro na DI nao localizado."
-        }
-
-        $registros = @'
-        services.AddScoped<PrescricaoConsultaRepository>();
-
-        services.AddScoped<IPrescricaoConsultaRepository>(
-            sp => sp.GetRequiredService<PrescricaoConsultaRepository>());
-
-        services.AddScoped<IPrescricaoODataConsultaRepository>(
-            sp => sp.GetRequiredService<PrescricaoConsultaRepository>());
-
+</Project>
 '@
 
-        $conteudoDI = $conteudoDI.Replace(
-            $marcador,
-            $registros + $marcador
-        )
+    # ================================================
+    # 2. FIXTURE MYSQL
+    # ================================================
 
-        # Corrigir os espacos que causaram o erro anterior
-        $conteudoDI = LimparEspacos $conteudoDI
+    Salvar "MySqlFixture.cs" @'
+using MedicalPrescription.Infrastructure.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
+using Testcontainers.MySql;
 
-        # Reduzir excesso de linhas vazias
-        $conteudoDI = [regex]::Replace(
-            $conteudoDI,
-            '(?:\r?\n){3,}',
-            "`r`n`r`n"
-        )
+namespace MedicalPrescription.IntegrationTests;
 
-        Salvar $di $conteudoDI
+public sealed class MySqlFixture : IAsyncLifetime
+{
+    private readonly MySqlContainer _container =
+        new MySqlBuilder("mysql:8.4").Build();
 
-        Write-Host "Dependency Injection atualizada." `
-            -ForegroundColor Green
+    public MedicalPrescriptionDbContext NovoContexto()
+    {
+        var options = new DbContextOptionsBuilder<MedicalPrescriptionDbContext>()
+            .UseMySql(
+                _container.GetConnectionString(),
+                new MySqlServerVersion(new Version(8, 4, 0)))
+            .Options;
 
-        # Remover somente a classe redundante
-        Remove-Item -LiteralPath $odata
-
-        Write-Host "Repositorio OData redundante removido." `
-            -ForegroundColor Yellow
-    }
-    else {
-        $conteudo = Ler $consulta
-
-        if (
-            $conteudo -notmatch 'IPrescricaoODataConsultaRepository' -or
-            $conteudo -notmatch '\bConsultar\s*\('
-        ) {
-            throw "Repositorio OData ausente e consolidacao incompleta."
-        }
-
-        # Permite executar novamente sem duplicar implementacoes
-        Write-Host "Repositorio ja consolidado." `
-            -ForegroundColor Yellow
+        return new MedicalPrescriptionDbContext(options);
     }
 
-    # ==========================================
-    # 5. BUILD DA API
-    # ==========================================
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
 
-    Write-Host "`nCompilando API..." -ForegroundColor Cyan
+        await using var context = NovoContexto();
 
-    dotnet build $api.FullName
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Falha na compilacao."
+        // Aplica as migrations reais no banco temporario.
+        await context.Database.MigrateAsync();
     }
 
-    # ==========================================
-    # 6. TESTES UNITARIOS
-    # ==========================================
-
-    Write-Host "`nExecutando testes..." -ForegroundColor Cyan
-
-    dotnet test $tests.FullName --no-restore
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Falha nos testes."
+    public async Task DisposeAsync()
+    {
+        await _container.DisposeAsync();
     }
-
-    # ==========================================
-    # 7. VALIDAR FORMATACAO DOS ARQUIVOS ALTERADOS
-    # ==========================================
-
-    $relConsulta = $consulta.Substring($raiz.Length + 1).Replace('\', '/')
-    $relDI = $di.Substring($raiz.Length + 1).Replace('\', '/')
-
-    git diff --check -- $relConsulta $relDI
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Formatacao invalida nos arquivos refatorados."
-    }
-
-    Write-Host "`nREFATORACAO VALIDADA COM SUCESSO!" `
-        -ForegroundColor Green
 }
-catch {
-    $motivo = $_
+'@
 
-    foreach ($arquivo in @($consulta, $odata, $di)) {
-        if ($originais.ContainsKey($arquivo)) {
-            Copy-Item -LiteralPath $originais[$arquivo] `
-                -Destination $arquivo -Force
+    # ================================================
+    # 3. TESTES DE PERSISTENCIA
+    # ================================================
+
+    Salvar "PrescricaoPersistenciaTests.cs" @'
+using MedicalPrescription.Domain.Entities;
+using MedicalPrescription.Infrastructure.Persistence.Repositories;
+using Microsoft.EntityFrameworkCore;
+
+namespace MedicalPrescription.IntegrationTests;
+
+public sealed class PrescricaoPersistenciaTests
+    : IClassFixture<MySqlFixture>
+{
+    private readonly MySqlFixture _fixture;
+
+    public PrescricaoPersistenciaTests(MySqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task SubstituirItens_DeveExcluirAntigosEPersistirNovos()
+    {
+        // Arrange: criar uma prescricao com um medicamento.
+        var paciente = new Paciente("Paciente Integracao");
+
+        var prescricao = Prescricao.CriarEstruturada(
+            paciente.Id,
+            new[] { NovoItem("Original", 100m) });
+
+        var idOriginal = prescricao.Itens.Single().Id;
+
+        await using (var context = _fixture.NovoContexto())
+        {
+            context.Pacientes.Add(paciente);
+
+            var repository = new PrescricaoWriteRepository(context);
+
+            await repository.AdicionarAsync(prescricao);
+            await context.SaveChangesAsync();
         }
-        elseif (Test-Path $arquivo) {
-            Remove-Item -LiteralPath $arquivo -Force
+
+        // Act: carregar agregado rastreado e substituir os itens.
+        await using (var context = _fixture.NovoContexto())
+        {
+            var repository = new PrescricaoWriteRepository(context);
+
+            var agregado = await repository.ObterParaEscritaAsync(
+                prescricao.Id);
+
+            Assert.NotNull(agregado);
+
+            agregado.SubstituirItens(new[]
+            {
+                NovoItem("Novo medicamento A", 250m),
+                NovoItem("Novo medicamento B", 500m)
+            });
+
+            await context.SaveChangesAsync();
+        }
+
+        // Assert: consultar com novo DbContext para verificar o banco.
+        await using (var context = _fixture.NovoContexto())
+        {
+            var itens = await context.PrescricaoItens
+                .AsNoTracking()
+                .Where(i => i.PrescricaoId == prescricao.Id)
+                .ToListAsync();
+
+            Assert.Equal(2, itens.Count);
+
+            Assert.DoesNotContain(
+                itens,
+                item => item.Id == idOriginal);
+
+            Assert.Contains(
+                itens,
+                item =>
+                    item.NomeMedicamento == "Novo medicamento A" &&
+                    item.Dosagem.Quantidade == 250m);
+
+            Assert.Contains(
+                itens,
+                item =>
+                    item.NomeMedicamento == "Novo medicamento B" &&
+                    item.Dosagem.Quantidade == 500m);
+
+            Assert.All(
+                itens,
+                item => Assert.Equal(prescricao.Id, item.PrescricaoId));
         }
     }
 
-    throw "Refatoracao revertida. Motivo: $motivo"
+    [Fact]
+    public async Task ExcluirPrescricao_DeveExcluirItensEPreservarPaciente()
+    {
+        // Arrange
+        var paciente = new Paciente("Paciente Exclusao");
+
+        var prescricao = Prescricao.CriarEstruturada(
+            paciente.Id,
+            new[] { NovoItem("Medicamento teste", 100m) });
+
+        await using (var context = _fixture.NovoContexto())
+        {
+            context.Pacientes.Add(paciente);
+            context.Prescricoes.Add(prescricao);
+
+            await context.SaveChangesAsync();
+        }
+
+        // Act
+        await using (var context = _fixture.NovoContexto())
+        {
+            var repository = new PrescricaoWriteRepository(context);
+
+            var agregado = await repository.ObterParaEscritaAsync(
+                prescricao.Id);
+
+            Assert.NotNull(agregado);
+
+            repository.Remover(agregado);
+
+            await context.SaveChangesAsync();
+        }
+
+        // Assert
+        await using (var context = _fixture.NovoContexto())
+        {
+            Assert.False(await context.Prescricoes
+                .AnyAsync(p => p.Id == prescricao.Id));
+
+            Assert.False(await context.PrescricaoItens
+                .AnyAsync(i => i.PrescricaoId == prescricao.Id));
+
+            Assert.True(await context.Pacientes
+                .AnyAsync(p => p.Id == paciente.Id));
+        }
+    }
+
+    [Fact]
+    public async Task ConsultarDetalhes_NaoDeveRastrearEntidades()
+    {
+        // Arrange
+        var paciente = new Paciente("Paciente Consulta");
+
+        var prescricao = Prescricao.CriarEstruturada(
+            paciente.Id,
+            new[] { NovoItem("Medicamento consulta", 300m) });
+
+        await using (var context = _fixture.NovoContexto())
+        {
+            context.Pacientes.Add(paciente);
+            context.Prescricoes.Add(prescricao);
+
+            await context.SaveChangesAsync();
+        }
+
+        // Act
+        await using (var context = _fixture.NovoContexto())
+        {
+            var repository = new PrescricaoReadRepository(context);
+
+            var resultado = await repository.ObterPorIdAsync(
+                prescricao.Id);
+
+            // Assert
+            Assert.NotNull(resultado);
+
+            Assert.Equal(prescricao.Id, resultado.Id);
+            Assert.Equal(paciente.Id, resultado.PacienteId);
+
+            var item = Assert.Single(resultado.Itens);
+
+            Assert.Equal("Medicamento consulta", item.NomeMedicamento);
+            Assert.Equal(300m, item.Dose);
+            Assert.Equal("mg", item.UnidadeMedida);
+
+            Assert.Empty(context.ChangeTracker.Entries());
+        }
+    }
+
+    private static PrescricaoItem NovoItem(string nome, decimal dose)
+    {
+        return new PrescricaoItem(
+            medicamentoId: null,
+            nomeMedicamento: nome,
+            formaFarmaceutica: "Comprimido",
+            dose: dose,
+            unidadeMedida: "mg",
+            frequencia: "A cada 8 horas",
+            inicioTratamento: new DateOnly(2026, 11, 17),
+            duracaoTratamentoDias: 7,
+            usoContinuo: false,
+            viaAdministracao: "Oral",
+            prazoUtilizacao: "7 dias",
+            observacao: null);
+    }
+}
+'@
 }
 
-Write-Host "`nArquivos alterados:" -ForegroundColor Cyan
+# ================================================
+# 4. ADICIONAR PROJETO A SOLUCAO
+# ================================================
 
+$conteudo = [IO.File]::ReadAllText($solucao)
+
+if (-not $conteudo.Contains(
+    "MedicalPrescription.IntegrationTests.csproj"
+)) {
+
+    $marcador = '<Project Path="MedicalPrescription.UnitTests/MedicalPrescription.UnitTests.csproj" />'
+
+    if (-not $conteudo.Contains($marcador)) {
+        throw "Ponto de insercao nao encontrado na solucao."
+    }
+
+    $backup = "$solucao.bak"
+
+    Copy-Item $solucao $backup -Force
+
+    $novoProjeto = '<Project Path="MedicalPrescription.IntegrationTests/MedicalPrescription.IntegrationTests.csproj" />'
+
+    $conteudo = $conteudo.Replace(
+        $marcador,
+        $marcador + "`r`n    " + $novoProjeto
+    )
+
+    [IO.File]::WriteAllText($solucao, $conteudo, $utf8)
+
+    Write-Host "Projeto adicionado a solucao." -ForegroundColor Green
+}
+
+# ================================================
+# 5. RESTORE, BUILD E TESTES
+# ================================================
+
+Write-Host "`nCompilando solucao..." -ForegroundColor Cyan
+
+dotnet build $solucao
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Build falhou. Arquivos mantidos para diagnostico."
+}
+
+Write-Host "`nExecutando os 42 testes unitarios..." `
+    -ForegroundColor Cyan
+
+dotnet test $unitTests --no-build
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Testes unitarios falharam."
+}
+
+Write-Host "`nExecutando integracao com MySQL real..." `
+    -ForegroundColor Cyan
+
+dotnet test $projeto --no-build --logger "console;verbosity=normal"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Testes de integracao falharam. Verifique o erro."
+}
+
+Write-Host "`nTODOS OS TESTES PASSARAM!" `
+    -ForegroundColor Green
+
+Write-Host "`nAlteracoes:" -ForegroundColor Cyan
 git status --short
-
-Write-Host "`nBackup: $backup" -ForegroundColor Cyan
