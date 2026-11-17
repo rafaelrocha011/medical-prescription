@@ -171,6 +171,14 @@ public class CriarPrescricaoUseCaseTests
 
     private sealed class FakePacienteRepository : IPacienteRepository
     {
+        public Task<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.PacienteResumoDto>> ListarAsync(
+            string? busca,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.PacienteResumoDto>>(
+                Array.Empty<MedicalPrescription.Application.DTOs.Catalogos.PacienteResumoDto>());
+        }
+
         public bool Existe { get; set; } = true;
 
         public Task<bool> ExisteAsync(
@@ -181,6 +189,14 @@ public class CriarPrescricaoUseCaseTests
 
     private sealed class FakeMedicamentoRepository : IMedicamentoRepository
     {
+        public Task<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>> ListarAsync(
+            string? busca,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>>(
+                Array.Empty<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>());
+        }
+
         public Dictionary<Guid, Medicamento> Catalogo { get; } = new();
         public int Consultas { get; private set; }
 
