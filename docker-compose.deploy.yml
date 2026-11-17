@@ -1,0 +1,11 @@
+# Usado somente pelo workflow manual de homologacao.
+# Imagens versionadas por SHA; o volume mysql_data permanece persistente.
+services:
+  migrate:
+    image: ${REGISTRY_NAMESPACE:?Definir REGISTRY_NAMESPACE}-migrate:${IMAGE_TAG:?Definir IMAGE_TAG}
+  api:
+    image: ${REGISTRY_NAMESPACE:?Definir REGISTRY_NAMESPACE}-api:${IMAGE_TAG:?Definir IMAGE_TAG}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+  frontend:
+    image: ${REGISTRY_NAMESPACE:?Definir REGISTRY_NAMESPACE}-frontend:${IMAGE_TAG:?Definir IMAGE_TAG}
