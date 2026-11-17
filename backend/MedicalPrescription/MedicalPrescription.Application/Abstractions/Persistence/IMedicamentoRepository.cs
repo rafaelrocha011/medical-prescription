@@ -1,4 +1,5 @@
-﻿using MedicalPrescription.Domain.Entities;
+using MedicalPrescription.Application.DTOs.Catalogos;
+using MedicalPrescription.Domain.Entities;
 
 namespace MedicalPrescription.Application.Abstractions.Persistence;
 
@@ -6,5 +7,9 @@ public interface IMedicamentoRepository
 {
     Task<Medicamento?> ObterPorIdAsync(
         Guid id,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MedicamentoResumoDto>> ListarAsync(
+        string? busca,
         CancellationToken cancellationToken = default);
 }

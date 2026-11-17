@@ -1,4 +1,4 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.Abstractions.UseCases.Catalogos;
 using MedicalPrescription.Application.DTOs.Catalogos;
 
@@ -6,9 +6,9 @@ namespace MedicalPrescription.Application.UseCases.Catalogos;
 
 public sealed class ListarMedicamentosUseCase : IListarMedicamentosUseCase
 {
-    private readonly IMedicamentoConsultaRepository _repository;
+    private readonly IMedicamentoRepository _repository;
 
-    public ListarMedicamentosUseCase(IMedicamentoConsultaRepository repository)
+    public ListarMedicamentosUseCase(IMedicamentoRepository repository)
     {
         _repository = repository;
     }

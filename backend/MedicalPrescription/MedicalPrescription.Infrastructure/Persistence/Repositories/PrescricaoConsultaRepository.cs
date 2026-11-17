@@ -1,12 +1,11 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.DTOs.Prescricoes;
 using MedicalPrescription.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedicalPrescription.Infrastructure.Persistence.Repositories;
 
-public sealed class PrescricaoConsultaRepository
-    : IPrescricaoConsultaRepository
+public sealed class PrescricaoConsultaRepository : IPrescricaoConsultaRepository, IPrescricaoODataConsultaRepository
 {
     private readonly MedicalPrescriptionDbContext _context;
 
@@ -43,5 +42,19 @@ public sealed class PrescricaoConsultaRepository
             pagina,
             tamanhoPagina,
             total);
+    }
+
+    public IQueryable<PrescricaoODataDto> Consultar()
+    {
+        return _context.Prescricoes
+            .AsNoTracking()
+            .Select(p => new PrescricaoODataDto
+            {
+                Id = p.Id,
+                PacienteId = p.PacienteId,
+                Tipo = (int)p.Tipo,
+                CriadaEmUtc = p.CriadaEmUtc,
+                QuantidadeMedicamentos = p.Itens.Count
+            });
     }
 }

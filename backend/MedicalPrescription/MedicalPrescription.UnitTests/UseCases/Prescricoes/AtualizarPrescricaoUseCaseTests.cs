@@ -1,4 +1,4 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.DTOs.Prescricoes;
 using MedicalPrescription.Application.UseCases.Prescricoes.AtualizarPrescricao;
 using MedicalPrescription.Domain.Entities;
@@ -244,6 +244,14 @@ public class AtualizarPrescricaoUseCaseTests
 
     private sealed class FakeMedicamentoRepository : IMedicamentoRepository
     {
+        public Task<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>> ListarAsync(
+            string? busca,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>>(
+                Array.Empty<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>());
+        }
+
         public Dictionary<Guid, Medicamento> Catalogo { get; } = new();
 
         public Task<Medicamento?> ObterPorIdAsync(
