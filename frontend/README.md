@@ -1,59 +1,53 @@
-# MedicalPrescriptionWeb
+# Frontend — MedicalPrescription
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.30.
+Interface Angular 21 para gestão demonstrativa de prescrições médicas.
 
-## Development server
+## Organização
 
-To start a local development server, run:
+Os componentes standalone ficam em `src/app`. Cada funcionalidade pode conter:
 
-```bash
-ng serve
+- `domain/`: modelos e tipos TypeScript.
+- `application/`: DTOs, Use Cases e contratos (ports).
+- `infrastructure/`: adaptadores HTTP que implementam os contratos.
+- `presentation/`: páginas, componentes, validadores e utilitários de interface.
+
+Os repositórios HTTP de prescrições são organizados em **leitura** e **escrita**. A injeção por `InjectionToken` permite desacoplar Use Cases do `HttpClient`.
+
+## Executar no Docker Desktop (Windows)
+
+Na raiz do repositório:
+
+```powershell
+docker run --rm -it -p 4200:4200 -v "${PWD}\frontend:/workspace/frontend" -w /workspace/frontend node:22 sh -c "npm ci && npx ng serve --host 0.0.0.0 --poll 1000 --proxy-config src/proxy.conf.json"
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Acesse `http://localhost:4200/prescricoes`. A API .NET deve estar disponível em `http://localhost:5080`. O proxy usa `host.docker.internal` para alcançá-la a partir do contêiner.
 
-## Code scaffolding
+## Build e testes
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Na pasta `frontend/`, se Node.js/npm estiverem instalados localmente:
 
-```bash
-ng generate component component-name
+```powershell
+npm ci
+npm run build
+npm test -- --watch=false
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Ou execute tudo em Docker, a partir da raiz:
 
-```bash
-ng generate --help
+```powershell
+docker run --rm -v "${PWD}\frontend:/workspace/frontend" -w /workspace/frontend node:22 sh -c "npm ci && npm run build && npm test -- --watch=false"
 ```
 
-## Building
+## Comportamento da interface
 
-To build the project run:
+- Menu lateral com acesso a **Prescrições**.
+- Listagem com paginação e detalhes expansíveis.
+- Edição por registro; exclusão mediante modal de confirmação.
+- Cadastro estruturado ou não estruturado.
+- Pesquisa por nome no catálogo de medicamentos e opção de inclusão manual.
+- Validação de dosagem, campos obrigatórios e datas.
 
-```bash
-ng build
-```
+## Observações
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Não incluir `node_modules/`, `.angular/`, `dist/` ou resultados de testes no Git. O `.gitignore` é centralizado na raiz do repositório.

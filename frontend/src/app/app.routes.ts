@@ -25,12 +25,6 @@ export const routes: Routes = [
         .then(m => m.FormularioPrescricao)
   },
   {
-    path: 'prescricoes/:id',
-    loadComponent: () =>
-      import('./features/prescricoes/presentation/pages/detalhe-prescricao')
-        .then(m => m.DetalhePrescricao)
-  },
-  {
     path: '**',
     redirectTo: 'prescricoes'
   }
