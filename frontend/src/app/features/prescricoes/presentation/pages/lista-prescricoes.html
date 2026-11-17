@@ -1,0 +1,98 @@
+<main class="pagina">
+  <header class="cabecalho">
+    <div>
+      <span class="subtitulo">GESTÃƒO DE PRESCRIÇÕES</span>
+      <h1>Prescrições médicas</h1>
+      <p>Consulte as prescrições cadastradas no sistema.</p>
+    </div>
+
+    <div class="cabecalho-acoes">
+      <a routerLink="/prescricoes/nova" class="botao novo">
+        Nova prescrição
+      </a>
+
+      <button
+        type="button"
+        class="botao"
+        (click)="atualizar()"
+        [disabled]="carregando()">
+        Atualizar lista
+      </button>
+    </div>
+  </header>
+
+  <section class="painel">
+    <div class="painel-cabecalho">
+      <h2>Prescrições cadastradas</h2>
+      <span>{{ totalRegistros() }} registro(s)</span>
+    </div>
+
+    @if (erro()) {
+      <div class="mensagem erro" role="alert">{{ erro() }}</div>
+    }
+
+    @if (carregando()) {
+      <div class="mensagem">Carregando prescrições...</div>
+    } @else if (prescricoes().length === 0) {
+      <div class="mensagem">Nenhuma prescrição encontrada.</div>
+    } @else {
+      <div class="tabela-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Prescrição</th>
+              <th>Paciente</th>
+              <th>Tipo</th>
+              <th>Data</th>
+              <th>Medicamentos</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (item of prescricoes(); track item.id) {
+              <tr>
+                <td [title]="item.id">{{ item.id.slice(0, 8) }}</td>
+                <td [title]="item.pacienteId">{{ item.pacienteId.slice(0, 8) }}</td>
+                <td>
+                  <span
+                    class="tipo"
+                    [class.estruturada]="item.tipo === tipoEstruturada">
+                    {{
+                      item.tipo === tipoEstruturada
+                        ? 'Estruturada'
+                        : 'Não estruturada'
+                    }}
+                  </span>
+                </td>
+                <td>{{ item.criadaEmUtc | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ item.quantidadeMedicamentos }}</td>
+                <td>
+                  <a class="acao-detalhe" [routerLink]="['/prescricoes', item.id]">
+                    Ver detalhes
+                  </a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <footer class="paginacao">
+      <span>
+        Página {{ pagina() }} de {{ totalPaginas() || 1 }}
+      </span>
+
+      <div class="acoes">
+        <button type="button" (click)="anterior()" [disabled]="!podeVoltar()">
+          Anterior
+        </button>
+
+        <button type="button" (click)="proxima()" [disabled]="!podeAvancar()">
+          Próxima
+        </button>
+      </div>
+    </footer>
+  </section>
+</main>
