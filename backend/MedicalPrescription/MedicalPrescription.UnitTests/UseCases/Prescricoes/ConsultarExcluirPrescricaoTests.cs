@@ -162,8 +162,7 @@ public class ConsultarExcluirPrescricaoTests
                 p.PacienteId,
                 p.Tipo,
                 p.TextoLivre,
-                p.CriadaEmUtc,
-                itens);
+                p.CriadaEmUtc, itens, "Paciente teste");
         }
 
         public Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(

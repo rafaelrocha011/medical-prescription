@@ -28,7 +28,15 @@ public sealed class PrescricaoReadRepository : IPrescricaoReadRepository, IPresc
                 p.PacienteId,
                 p.Tipo,
                 p.TextoLivre,
-                p.CriadaEmUtc
+                p.CriadaEmUtc,
+
+                NomePaciente = _context.Pacientes
+
+                    .Where(paciente => paciente.Id == p.PacienteId)
+
+                    .Select(paciente => paciente.NomeCompleto)
+
+                    .FirstOrDefault()!
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -62,7 +70,8 @@ public sealed class PrescricaoReadRepository : IPrescricaoReadRepository, IPresc
             dados.Tipo,
             dados.TextoLivre,
             dados.CriadaEmUtc,
-            itens);
+            itens,
+            dados.NomePaciente);
     }
     public async Task<ResultadoPaginado<PrescricaoResumoDto>> ListarAsync(
         int pagina,
@@ -83,7 +92,15 @@ public sealed class PrescricaoReadRepository : IPrescricaoReadRepository, IPresc
                 p.PacienteId,
                 p.Tipo,
                 p.CriadaEmUtc,
-                p.Itens.Count))
+                p.Itens.Count,
+
+                _context.Pacientes
+
+                    .Where(paciente => paciente.Id == p.PacienteId)
+
+                    .Select(paciente => paciente.NomeCompleto)
+
+                    .FirstOrDefault()!))
             .ToListAsync(cancellationToken);
 
         return new ResultadoPaginado<PrescricaoResumoDto>(

@@ -12,6 +12,7 @@ import { ListaPrescricoes } from './lista-prescricoes';
 const resumo = {
   id: 'prescricao-teste-1',
   pacienteId: 'paciente-teste-1',
+  nomePaciente: 'Paciente Nome Completo Teste',
   tipo: TipoPrescricao.NaoEstruturada,
   criadaEmUtc: '2026-11-17T15:00:00Z',
   quantidadeMedicamentos: 0
@@ -56,6 +57,25 @@ describe('ListaPrescricoes', () => {
     expect(elemento.querySelector('[data-testid="delete"]')).toBeTruthy();
     expect(elemento.querySelector('a[href*="editar"]')).toBeTruthy();
   });
+
+  it('mostra nome do paciente, sem GUIDs na linha', () => {
+
+    const fixture = TestBed.createComponent(ListaPrescricoes);
+
+    fixture.detectChanges();
+
+    const elemento = fixture.nativeElement as HTMLElement;
+
+    const linha = elemento.querySelector('tbody tr');
+
+    expect(linha?.textContent).toContain('Paciente Nome Completo Teste');
+
+    expect(linha?.textContent).not.toContain('paciente-teste-1');
+
+    expect(linha?.textContent).not.toContain('prescricao-teste-1');
+
+  });
+
 
   it('abre detalhes diretamente abaixo do registro', () => {
     const fixture = TestBed.createComponent(ListaPrescricoes);
