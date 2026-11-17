@@ -1,22 +1,175 @@
 # MedicalPrescription
 
-Projeto demonstrativo de gestão de prescrições médicas, desenvolvido para avaliação técnica full-stack. **Não é um produto clínico homologado nem deve ser utilizado para prescrições reais.**
+Projeto demonstrativo full-stack para gestao de prescricoes medicas. **Nao e um produto clinico homologado e nao deve ser utilizado para prescricoes reais.**
 
-## Tecnologias
+**Tecnologias:** .NET 9, ASP.NET Core Web API, Entity Framework Core, MySQL 8.4, OData, Angular 21, TypeScript, RxJS, Docker Compose, Nginx, xUnit, Testcontainers e Vitest.
 
-- **Backend:** C#, .NET 9, ASP.NET Core Web API, Entity Framework Core, MySQL 8.4 e OData.
-- **Frontend:** Angular 21, TypeScript, componentes standalone, Reactive Forms e RxJS.
-- **Testes:** xUnit, testes de integração com Testcontainers/MySQL e testes Angular.
-- **Ambiente:** Docker Desktop, Docker Compose (MySQL) e Visual Studio ou .NET CLI.
+## Comece aqui: instalar em uma maquina limpa
 
-## Regras funcionais
+Este e o caminho recomendado para quem quer **executar a aplicacao completa sem instalar .NET, Node.js, MySQL ou Angular localmente**.
 
-O sistema permite cadastrar, listar, consultar, editar e excluir prescrições. Existem dois tipos:
+### 1. Pre-requisitos
 
-- **Não estruturada:** texto livre (ECF.10.01).
-- **Estruturada:** itens de medicamentos, inclusive não cadastrados no catálogo, com forma farmacêutica, dosagem, frequência, início, duração/uso contínuo, via de administração, prazo e observações (ECF.10.03).
+- **Git**, para clonar o repositorio.
+- **Docker Desktop com Docker Compose v2**, iniciado e usando conteineres Linux. No Windows, habilite o backend WSL 2 se solicitado pelo Docker Desktop.
+- Conexao com a internet para baixar imagens e dependencias; espaco livre suficiente para construir as imagens.
 
-O frontend disponibiliza pesquisa por nome no catálogo de medicamentos e consulta os registros pela API. Dosagens são validadas com até três casas decimais; o armazenamento utiliza `decimal(12,3)`.
+Verifique no terminal:
+
+```powershell
+git --version
+docker --version
+docker compose version
+docker info
+```
+
+> O ultimo comando so funciona se o Docker Engine estiver em execucao. Nao e necessario ter Visual Studio, MySQL, .NET SDK ou Node.js instalados para o fluxo Docker abaixo.
+
+### 2. Clonar a branch com a aplicacao completa
+
+A integracao da solucao foi realizada em **`develop`**. Ate que `main` seja atualizada, use explicitamente essa branch:
+
+```powershell
+git clone --branch develop https://github.com/rafaelrocha011/medical-prescription.git
+cd medical-prescription
+```
+
+### 3. Configurar credenciais locais
+
+Crie o arquivo **`.env` na raiz**, a partir de **`.env.example`**:
+
+**Windows PowerShell:**
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+**Linux/macOS:**
+
+```bash
+cp .env.example .env
+```
+
+Altere as senhas dos campos `MYSQL_ROOT_PASSWORD` e `MYSQL_PASSWORD` para valores locais fortes. Exemplo de estrutura (nao reutilize estas senhas):
+
+```dotenv
+MYSQL_ROOT_PASSWORD=DEFINA_UMA_SENHA_ROOT_FORTE
+MYSQL_DATABASE=medical_prescription
+MYSQL_USER=medical_user
+MYSQL_PASSWORD=DEFINA_UMA_SENHA_DO_USUARIO
+MYSQL_PORT=3307
+```
+
+O arquivo `.env` esta ignorado pelo Git. Nao envie credenciais ao repositorio. **Se alterar senhas depois da primeira inicializacao do MySQL, elas nao serao aplicadas automaticamente ao banco ja existente no volume persistente.**
+
+### 4. Construir e iniciar a solucao
+
+Execute **na raiz do repositorio**:
+
+```powershell
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps -a
+```
+
+O Docker Compose disponibiliza:
+
+| Servico | O que faz | Acesso na maquina |
+|---|---|---|
+| `mysql` | Banco MySQL 8.4, com volume persistente | `127.0.0.1:3307` |
+| `migrate` | Executa as migrations EF Core antes da API | Finaliza com codigo `0` |
+| `api` | API ASP.NET Core 9; conecta-se a `mysql:3306` na rede Docker | `http://localhost:5080` |
+| `frontend` | Angular compilado, servido pelo Nginx | `http://localhost:4200` |
+
+**Resultado esperado:** `mysql`, `api` e `frontend` com status **healthy**, e `migrate` com **Exited (0)**. O contêiner de migrations nao precisa permanecer executando.
+
+A construcao inicial pode levar mais tempo por causa do download das imagens e dos pacotes.
+
+### 5. Abrir e testar
+
+- **Aplicacao:** http://localhost:4200/prescricoes
+- **Consulta REST:** http://localhost:5080/api/prescricoes
+- **Consulta OData:** http://localhost:5080/odata/ConsultaPrescricoes
+- **API via Nginx:** http://localhost:4200/api/prescricoes
+
+No PowerShell, teste a resposta da API:
+
+```powershell
+Invoke-RestMethod "http://localhost:5080/api/prescricoes?pagina=1&tamanhoPagina=10"
+```
+
+O Angular acessa a API pelo mesmo host usando o proxy reverso do **Nginx** (`/api/` e `/odata/`); nao precisa configurar CORS nem `host.docker.internal` nesse modo. O projeto roda em HTTP local, apropriado apenas para avaliacao e desenvolvimento.
+
+**Primeiro acesso:** quando a API roda com `ASPNETCORE_ENVIRONMENT=Development`, o inicializador de desenvolvimento insere pacientes e medicamentos de exemplo caso os respectivos catalogos estejam vazios. As prescricoes sao criadas pelo usuario; o banco nao precisa conter prescricoes inicialmente.
+
+## Operacao diaria
+
+Execute os comandos na raiz do repositorio:
+
+```powershell
+# Consultar estado dos servicos
+docker compose ps -a
+
+# Visualizar logs
+docker compose logs --tail=100 api
+docker compose logs --tail=100 frontend
+docker compose logs --tail=100 migrate
+docker compose logs --tail=100 mysql
+
+# Parar mantendo os dados
+docker compose down
+
+# Iniciar novamente
+docker compose up -d
+```
+
+O volume nomeado `mysql_data` preserva as informacoes entre reinicializacoes. **NAO execute `docker compose down -v` se quiser conservar o banco.** `docker compose down` sem `-v` preserva os volumes nomeados.
+
+Para reconstruir apos atualizacoes do codigo:
+
+```powershell
+git pull --ff-only origin develop
+docker compose up -d --build
+```
+
+### Portas ocupadas
+
+O Compose vincula as portas a `127.0.0.1`. Se `4200`, `5080` ou `3307` estiverem em uso, altere/adicione no `.env`:
+
+```dotenv
+FRONTEND_PORT=4201
+API_PORT=5081
+MYSQL_PORT=3308
+```
+
+Depois, reinicie os servicos com `docker compose up -d` e use as novas URLs. **Nao execute simultaneamente a API pelo Visual Studio ou o Angular por `ng serve` usando as mesmas portas.**
+
+### Solucao de problemas
+
+| Sintoma | O que verificar |
+|---|---|
+| `docker compose` nao funciona | Docker Desktop iniciado; Compose v2 disponivel; conteineres Linux |
+| Erro de variavel obrigatoria | Confirme a existencia de `.env` na raiz e os campos `MYSQL_...` |
+| Porta ja utilizada | Pare a aplicacao concorrente ou altere as portas no `.env` |
+| `migrate` finalizou com erro | Consulte `docker compose logs migrate` e `docker compose logs mysql` |
+| API ou frontend nao ficam saudaveis | Consulte `docker compose ps -a` e os logs do servico |
+| Lista vazia | Verifique se a API responde; em um banco novo pode nao haver prescricoes |
+| Problemas apos alterar credenciais | As senhas nao sao redefinidas em um volume MySQL ja inicializado |
+
+**Atencao ao banco:** nunca use `down -v` ou remova volumes como primeira tentativa de correcao. Isso apaga os dados persistidos.
+
+## Desenvolvimento sem rodar toda a stack no Docker (opcional)
+
+Se desejar executar a API no Visual Studio e o Angular com hot reload, instale .NET SDK 9 e Node.js 22. O modo abaixo e **alternativo** ao Compose completo: nao rode as duas formas da API/frontend nas mesmas portas.
+
+1. Suba apenas o MySQL: `docker compose up -d mysql`.
+2. Configure `ConnectionStrings:MySql` via User Secrets no projeto `backend/MedicalPrescription/MedicalPrescription.Api`, com `Server=localhost;Port=3307` e as credenciais do `.env`.
+3. Aplique migrations com `dotnet tool restore` e `dotnet ef database update --project backend/MedicalPrescription/MedicalPrescription.Infrastructure --startup-project backend/MedicalPrescription/MedicalPrescription.Api`.
+4. Inicie a API: `dotnet run --project backend/MedicalPrescription/MedicalPrescription.Api --launch-profile http`.
+5. Em `frontend/`, execute `npm ci` e `npx ng serve --proxy-config src/proxy.conf.json`.
+
+O proxy de desenvolvimento Angular usa `host.docker.internal:5080` para acesso a uma API executando no host Windows quando o Angular estiver em contêiner. Se rodar `ng serve` nativamente, ajuste o destino do proxy para `http://localhost:5080`, caso necessario.
 
 ## Arquitetura
 
@@ -24,98 +177,48 @@ O frontend disponibiliza pesquisa por nome no catálogo de medicamentos e consul
 backend/MedicalPrescription/
   MedicalPrescription.Domain/           Entidades, regras e Value Objects
   MedicalPrescription.Application/      Use Cases, Commands, Queries, contratos e DTOs
-  MedicalPrescription.Infrastructure/   EF Core, migrations e repositórios
-  MedicalPrescription.Api/              Controllers, DI, OData e ProblemDetails
-  MedicalPrescription.UnitTests/        Testes unitários
-  MedicalPrescription.IntegrationTests/ Testes com MySQL isolado
-frontend/src/app/
-  features/                              Módulos por funcionalidade
-  app.config.ts                          Provedores e injeção de dependências
-  app.routes.ts                          Rotas e lazy loading
+  MedicalPrescription.Infrastructure/   EF Core, migrations e repositorios
+  MedicalPrescription.Api/              Endpoints REST/OData, DI e ProblemDetails
+  MedicalPrescription.UnitTests/        Testes unitarios xUnit
+  MedicalPrescription.IntegrationTests/ Testcontainers/MySQL
+frontend/
+  src/app/features/                     Funcionalidades, adaptadores, paginas e componentes
+  Dockerfile                             Build Angular + Nginx
+  nginx.conf                             SPA + proxy da API
+docker-compose.yml                       MySQL, migrations, API e frontend
+docker-compose.deploy.yml                Override para imagens versionadas de homologacao
+.github/workflows/                       CI e deploy manual
 ```
 
-Dependências do backend apontam para o interior da arquitetura: Domain não depende de outras camadas; Application depende de Domain; Infrastructure implementa contratos; API é o ponto de composição. Há separação lógica entre comandos e consultas, sem necessidade de MediatR.
+O backend utiliza Clean Architecture, SOLID e separacao logica de comandos e consultas (CQRS). O frontend usa Angular standalone, Reactive Forms e contratos desacoplados de adaptadores HTTP.
 
-## Pré-requisitos
+### Funcionalidades
 
-- .NET SDK 9
-- Docker Desktop em execução
-- Git
-- Para executar Angular fora do Docker: Node.js 22 e npm compatível
+- Criacao, consulta, listagem, edicao e exclusao de prescricoes.
+- Prescricoes nao estruturadas (texto livre) e estruturadas (itens de medicamentos).
+- Medicamentos do catalogo ou preenchimento manual, dosagem com ate tres casas decimais, frequencia, inicio, duracao/uso continuo, via, prazo e observacoes.
+- Listagem paginada com nome do paciente e detalhes expansiveis.
+- OData para consultas; erros HTTP no formato ProblemDetails.
 
-## Executar localmente no Windows
+## Testes e CI/CD
 
-1. Crie o arquivo `.env` na raiz usando `.env.example` como referência. Não versione senhas.
-2. Suba somente o MySQL:
-
-   ```powershell
-   docker compose up -d mysql
-   docker compose ps
-   ```
-
-3. Configure a connection string em **User Secrets** (substitua os dados de exemplo pelas credenciais usadas no `.env`):
-
-   ```powershell
-   dotnet user-secrets set "ConnectionStrings:MySql" "Server=localhost;Port=3307;Database=medical_prescription;User=medical_user;Password=SUA_SENHA" --project backend/MedicalPrescription/MedicalPrescription.Api
-   ```
-
-4. Instale a ferramenta EF Core local e aplique as migrations:
-
-   ```powershell
-   dotnet tool restore
-   dotnet ef database update --project backend/MedicalPrescription/MedicalPrescription.Infrastructure --startup-project backend/MedicalPrescription/MedicalPrescription.Api
-   ```
-
-5. Execute a API com o perfil HTTP (porta `5080`):
-
-   ```powershell
-   dotnet run --project backend/MedicalPrescription/MedicalPrescription.Api --launch-profile http
-   ```
-
-6. Em outro PowerShell, na raiz do repositório, execute o Angular em Docker:
-
-   ```powershell
-   docker run --rm -it -p 4200:4200 -v "${PWD}\frontend:/workspace/frontend" -w /workspace/frontend node:22 sh -c "npm ci && npx ng serve --host 0.0.0.0 --poll 1000 --proxy-config src/proxy.conf.json"
-   ```
-
-Abra `http://localhost:4200/prescricoes`. O proxy do frontend foi configurado para usar `http://host.docker.internal:5080`, adequado ao cenário Docker Desktop + API executando no Windows.
-
-> **Nota:** o `docker-compose.yml` atual provisiona apenas o MySQL. A conteinerização completa (API e Angular) e CI/CD são etapas posteriores; não estão representadas como concluídas neste README.
-
-## Endpoints principais
-
-| Método | Caminho | Finalidade |
-|---|---|---|
-| GET | `/api/prescricoes` | Listar com paginação |
-| GET | `/api/prescricoes/{id}` | Obter detalhes |
-| POST | `/api/prescricoes` | Criar |
-| PUT | `/api/prescricoes/{id}` | Atualizar |
-| DELETE | `/api/prescricoes/{id}` | Excluir |
-| GET | `/api/medicamentos?busca=...` | Pesquisar catálogo |
-| GET | `/api/pacientes?busca=...` | Pesquisar pacientes |
-| GET | `/odata/ConsultaPrescricoes` | Consultar com OData |
-
-As falhas HTTP usam `ProblemDetails` com `traceId`. As datas `CriadaEmUtc` são tratadas como UTC na API e na persistência.
-
-## Testes e build
+**Execucao local opcional (com SDK .NET 9, Node 22 e Docker instalado):**
 
 ```powershell
-dotnet build backend/MedicalPrescription/MedicalPrescription.slnx
 dotnet test backend/MedicalPrescription/MedicalPrescription.slnx
+cd frontend
+npm ci
+npm run build
+npm test -- --watch=false
 ```
 
-Para build/testes Angular em Docker:
+Os testes de integracao utilizam MySQL temporario via Testcontainers; requerem Docker Engine acessivel. Eles nao utilizam o volume `mysql_data` do Compose.
 
-```powershell
-docker run --rm -v "${PWD}\frontend:/workspace/frontend" -w /workspace/frontend node:22 sh -c "npm ci && npm run build && npm test -- --watch=false"
-```
+**GitHub Actions:** o workflow `.github/workflows/ci.yml` executa build e testes em Pull Requests e em pushes na `develop`. Apos sucesso na `develop`, publica as imagens `api`, `frontend` e `migrate` no GitHub Container Registry (GHCR), com tag `sha-<commit>`. O workflow `deploy.yml` permite **deploy manual de homologacao**, mas exige runner e credenciais configurados; publicar imagem nao equivale a executar deploy. Mais detalhes em [docs/CI-CD.md](docs/CI-CD.md).
 
-Os testes de integração iniciam contêineres MySQL temporários com Testcontainers e não devem modificar o banco de desenvolvimento.
+## Banco, modelo e limitacoes
 
-## Modelo relacional
-
-O script de criação está em `database/schema.sql`. O diagrama ER está documentado em `docs/DER.md` quando integrado à branch principal.
-
-## Limitações e próximos passos
-
-Este é um projeto demonstrativo: não inclui autenticação/autorização clínica, assinatura digital, certificação SBIS ou integração com sistemas de saúde. Ainda são previstos Dockerfiles, Compose completo, pipeline CI/CD e validação integral em ambiente limpo.
+- O esquema e gerenciado pelas migrations EF Core; o contêiner `migrate` as aplica na inicializacao.
+- Modelo relacional em `database/schema.sql`; diagrama ER em `docs/DER-MedicalPrescription.md`.
+- Este projeto demonstrativo **nao oferece** autenticacao clinica, assinatura digital, homologacao/certificacao SBIS ou infraestrutura para prontuario real. Use somente dados ficticios.
+- Credenciais locais ficam em `.env` (nao versionado); para producao seria necessario gerenciar segredos, HTTPS, autorizacao, auditoria e backups.
