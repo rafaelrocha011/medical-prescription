@@ -95,6 +95,35 @@ public class Prescricao
         _itens.Add(item);
     }
 
+    public void SubstituirItens(IEnumerable<PrescricaoItem> itens)
+    {
+        if (Tipo != TipoPrescricao.Estruturada)
+            throw new InvalidOperationException(
+                "A prescricao nao e estruturada.");
+
+        ArgumentNullException.ThrowIfNull(itens);
+
+        var novosItens = itens.ToList();
+
+        if (novosItens.Count == 0)
+            throw new ArgumentException(
+                "Informe pelo menos um medicamento.");
+
+        if (novosItens.Any(item => item is null))
+            throw new ArgumentException(
+                "A lista contem um item invalido.");
+
+        if (novosItens.Select(item => item.Id).Distinct().Count()
+            != novosItens.Count)
+            throw new ArgumentException(
+                "A lista contem itens duplicados.");
+
+        foreach (var item in novosItens)
+            item.VincularPrescricao(Id);
+
+        _itens.Clear();
+        _itens.AddRange(novosItens);
+    }
     public void RemoverItem(Guid itemId)
     {
         if (Tipo != TipoPrescricao.Estruturada)
@@ -114,3 +143,4 @@ public class Prescricao
         _itens.Remove(item);
     }
 }
+
