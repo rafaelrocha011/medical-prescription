@@ -176,6 +176,63 @@ public sealed class PrescricaoPersistenciaTests
         }
     }
 
+    [Fact]
+
+    public async Task ListarEConsultar_DeveRetornarNomeDoPaciente()
+
+    {
+
+        var paciente = new Paciente("Paciente Nome Completo Teste");
+
+        var prescricao = Prescricao.CriarNaoEstruturada(
+
+            paciente.Id, "Texto de teste");
+
+
+
+        await using (var context = _fixture.NovoContexto())
+
+        {
+
+            context.Pacientes.Add(paciente);
+
+            context.Prescricoes.Add(prescricao);
+
+            await context.SaveChangesAsync();
+
+        }
+
+
+
+        await using (var context = _fixture.NovoContexto())
+
+        {
+
+            var repo = new PrescricaoReadRepository(context);
+
+            var pagina = await repo.ListarAsync(1, 100);
+
+            var resumo = Assert.Single(
+
+                pagina.Itens.Where(x => x.Id == prescricao.Id));
+
+            Assert.Equal(paciente.NomeCompleto, resumo.NomePaciente);
+
+
+
+            var detalhe = await repo.ObterPorIdAsync(prescricao.Id);
+
+            Assert.NotNull(detalhe);
+
+            Assert.Equal(paciente.NomeCompleto, detalhe.NomePaciente);
+
+            Assert.Empty(context.ChangeTracker.Entries());
+
+        }
+
+    }
+
+
     private static PrescricaoItem NovoItem(string nome, decimal dose)
     {
         return new PrescricaoItem(

@@ -1,4 +1,4 @@
-﻿export enum TipoPrescricao {
+export enum TipoPrescricao {
   NaoEstruturada = 1,
   Estruturada = 2
 }
@@ -6,6 +6,7 @@
 export interface PrescricaoResumo {
   id: string;
   pacienteId: string;
+  nomePaciente: string;
   tipo: TipoPrescricao;
   criadaEmUtc: string;
   quantidadeMedicamentos: number;

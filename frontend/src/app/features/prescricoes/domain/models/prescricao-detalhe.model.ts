@@ -19,6 +19,7 @@ export interface PrescricaoItemDetalhe {
 export interface PrescricaoDetalhe {
   id: string;
   pacienteId: string;
+  nomePaciente: string;
   tipo: TipoPrescricao;
   textoLivre: string | null;
   criadaEmUtc: string;

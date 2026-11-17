@@ -1,4 +1,4 @@
-﻿using MedicalPrescription.Domain.Enums;
+using MedicalPrescription.Domain.Enums;
 
 namespace MedicalPrescription.Application.DTOs.Prescricoes;
 
@@ -7,5 +7,6 @@ public sealed record PrescricaoResumoDto(
     Guid PacienteId,
     TipoPrescricao Tipo,
     DateTime CriadaEmUtc,
-    int QuantidadeMedicamentos
+    int QuantidadeMedicamentos,
+    string NomePaciente
 );
