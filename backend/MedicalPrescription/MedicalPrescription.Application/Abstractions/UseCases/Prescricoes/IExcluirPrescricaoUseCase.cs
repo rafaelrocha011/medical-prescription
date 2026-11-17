@@ -2,5 +2,7 @@
 
 public interface IExcluirPrescricaoUseCase
 {
-    // Contrato a definir na implementacao do Use Case.
+    Task ExecutarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
 }

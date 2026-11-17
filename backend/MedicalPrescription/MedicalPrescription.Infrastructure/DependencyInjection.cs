@@ -47,6 +47,13 @@ public static class DependencyInjection
             IPrescricaoConsultaRepository,
             PrescricaoConsultaRepository>();
 
+        services.AddScoped<IPacienteConsultaRepository, PacienteConsultaRepository>();
+        services.AddScoped<IMedicamentoConsultaRepository, MedicamentoConsultaRepository>();
+        services.AddScoped<
+            IPrescricaoODataConsultaRepository,
+            PrescricaoODataConsultaRepository>();
         return services;
     }
 }
+
+
