@@ -1,0 +1,44 @@
+<div class="busca-medicamento">
+  <label [for]="'busca-medicamento-' + indice()">
+    Pesquisar medicamento cadastrado
+  </label>
+  <div class="linha-busca">
+    <input
+      #campoBusca
+      [id]="'busca-medicamento-' + indice()"
+      type="search"
+      autocomplete="off"
+      placeholder="Digite pelo menos 2 letras do nome"
+      [value]="termo()"
+      (input)="pesquisar(campoBusca.value)" />
+    <button type="button" class="manual" (click)="usarManual()">
+      Não cadastrado
+    </button>
+  </div>
+
+  @if (nomeSelecionado()) {
+    <p class="selecionado">Selecionado no catálogo: <strong>{{ nomeSelecionado() }}</strong></p>
+  }
+
+  @if (carregando()) {
+    <p class="apoio" aria-live="polite">Pesquisando medicamentos...</p>
+  }
+  @if (erro()) {
+    <p class="erro-busca" role="alert">{{ erro() }}</p>
+  }
+  @if (!carregando() && pesquisou() && !erro() && resultados().length === 0) {
+    <p class="apoio">Nenhum medicamento encontrado. Você pode informar o nome manualmente.</p>
+  }
+  @if (resultados().length > 0) {
+    <ul class="resultados" aria-label="Resultados da pesquisa de medicamentos">
+      @for (medicamento of resultados(); track medicamento.id) {
+        <li>
+          <button type="button" (click)="escolher(medicamento)">
+            {{ medicamento.nome }}
+          </button>
+        </li>
+      }
+    </ul>
+  }
+  <p class="ajuda-busca">A pesquisa consulta o catálogo na API. Para medicamentos não cadastrados, utilize o preenchimento manual.</p>
+</div>

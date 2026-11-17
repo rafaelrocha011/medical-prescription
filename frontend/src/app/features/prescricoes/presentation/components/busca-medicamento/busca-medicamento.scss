@@ -1,0 +1,49 @@
+:host { display: block; min-width: 0; }
+.busca-medicamento { display: grid; gap: 8px; }
+label { font-size: 13px; font-weight: 600; }
+.linha-busca { display: flex; gap: 10px; flex-wrap: wrap; }
+input {
+  min-width: 180px;
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #0f172a;
+}
+button {
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  padding: 10px 14px;
+  color: #0f172a;
+  background: white;
+  font: inherit;
+  font-weight: 600;
+}
+button:focus-visible, input:focus-visible { outline: 3px solid #bfdbfe; outline-offset: 1px; }
+.manual:hover { background: #eff6ff; }
+.resultados {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.resultados li + li { border-top: 1px solid #e2e8f0; }
+.resultados button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  font-weight: 500;
+}
+.resultados button:hover { background: #eff6ff; }
+.selecionado { margin: 0; font-size: 13px; color: #166534; }
+.apoio, .ajuda-busca { font-size: 12px; color: #64748b; margin: 0; }
+.erro-busca { font-size: 13px; color: #b91c1c; margin: 0; }

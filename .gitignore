@@ -25,3 +25,43 @@
 
 # Logs
 *.log
+
+# BEGIN frontend ignore rules (consolidated)
+# Rules migrated from frontend/.gitignore. Relative scope is preserved.
+/frontend/dist
+/frontend/tmp
+/frontend/out-tsc
+/frontend/bazel-out
+/frontend/node_modules
+/frontend/**/npm-debug.log
+/frontend/**/yarn-error.log
+/frontend/**/.idea/
+/frontend/**/.project
+/frontend/**/.classpath
+/frontend/**/.c9/
+/frontend/**/*.launch
+/frontend/**/.settings/
+/frontend/**/*.sublime-workspace
+/frontend/**/.vscode/*
+!/frontend/**/.vscode/settings.json
+!/frontend/**/.vscode/tasks.json
+!/frontend/**/.vscode/launch.json
+!/frontend/**/.vscode/extensions.json
+!/frontend/**/.vscode/mcp.json
+/frontend/**/.history/*
+/frontend/.angular/cache
+/frontend/**/.sass-cache/
+/frontend/connect.lock
+/frontend/coverage
+/frontend/libpeerconnection.log
+/frontend/**/testem.log
+/frontend/typings
+/frontend/**/__screenshots__/
+/frontend/**/.DS_Store
+/frontend/**/Thumbs.db
+# END frontend ignore rules (consolidated)
+
+# Local helper script: never version the repeatedly overwritten file.
+/scripts/criar-pastas.ps1
+# Temporary editor/solution backups
+**/*.bak
