@@ -1,11 +1,11 @@
-﻿using MedicalPrescription.Application.Abstractions.UseCases.Catalogos;
-using MedicalPrescription.Application.UseCases.Catalogos;
+using MedicalPrescription.Application.Abstractions.UseCases.Catalogos;
+using MedicalPrescription.Application.Queries.Catalogos;
 using MedicalPrescription.Application.Abstractions.UseCases.Prescricoes;
-using MedicalPrescription.Application.UseCases.Prescricoes.CriarPrescricao;
-using MedicalPrescription.Application.UseCases.Prescricoes.AtualizarPrescricao;
-using MedicalPrescription.Application.UseCases.Prescricoes.ObterPrescricao;
-using MedicalPrescription.Application.UseCases.Prescricoes.ListarPrescricoes;
-using MedicalPrescription.Application.UseCases.Prescricoes.ExcluirPrescricao;
+using MedicalPrescription.Application.Commands.Prescricoes.CriarPrescricao;
+using MedicalPrescription.Application.Commands.Prescricoes.AtualizarPrescricao;
+using MedicalPrescription.Application.Queries.Prescricoes.ObterPrescricao;
+using MedicalPrescription.Application.Queries.Prescricoes.ListarPrescricoes;
+using MedicalPrescription.Application.Commands.Prescricoes.ExcluirPrescricao;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MedicalPrescription.Api.Configuration;

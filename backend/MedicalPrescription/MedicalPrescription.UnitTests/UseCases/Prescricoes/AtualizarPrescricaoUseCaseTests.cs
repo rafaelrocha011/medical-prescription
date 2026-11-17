@@ -1,6 +1,6 @@
-﻿using MedicalPrescription.Application.Abstractions.Persistence;
+using MedicalPrescription.Application.Abstractions.Persistence;
 using MedicalPrescription.Application.DTOs.Prescricoes;
-using MedicalPrescription.Application.UseCases.Prescricoes.AtualizarPrescricao;
+using MedicalPrescription.Application.Commands.Prescricoes.AtualizarPrescricao;
 using MedicalPrescription.Domain.Entities;
 using Xunit;
 
@@ -8,7 +8,7 @@ namespace MedicalPrescription.UnitTests.UseCases.Prescricoes;
 
 public class AtualizarPrescricaoUseCaseTests
 {
-    private readonly FakePrescricaoRepository _prescricoes = new();
+    private readonly FakePrescricaoWriteRepository _prescricoes = new();
     private readonly FakeMedicamentoRepository _medicamentos = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
 
@@ -212,7 +212,7 @@ public class AtualizarPrescricaoUseCaseTests
             Observacao: null);
     }
 
-    private sealed class FakePrescricaoRepository : IPrescricaoRepository
+    private sealed class FakePrescricaoWriteRepository : IPrescricaoWriteRepository
     {
         private readonly Dictionary<Guid, Prescricao> _dados = new();
 
@@ -221,7 +221,7 @@ public class AtualizarPrescricaoUseCaseTests
             _dados[prescricao.Id] = prescricao;
         }
 
-        public Task<Prescricao?> ObterPorIdAsync(
+        public Task<Prescricao?> ObterParaEscritaAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
@@ -244,6 +244,14 @@ public class AtualizarPrescricaoUseCaseTests
 
     private sealed class FakeMedicamentoRepository : IMedicamentoRepository
     {
+        public Task<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>> ListarAsync(
+            string? busca,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>>(
+                Array.Empty<MedicalPrescription.Application.DTOs.Catalogos.MedicamentoResumoDto>());
+        }
+
         public Dictionary<Guid, Medicamento> Catalogo { get; } = new();
 
         public Task<Medicamento?> ObterPorIdAsync(
