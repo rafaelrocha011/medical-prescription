@@ -3,330 +3,230 @@ $ErrorActionPreference = "Stop"
 
 $raiz = "C:\Projetos\prescricao-medica"
 $base = Join-Path $raiz "backend\MedicalPrescription"
-$nome = "MedicalPrescription.IntegrationTests"
-$pasta = Join-Path $base $nome
-$projeto = Join-Path $pasta "$nome.csproj"
-$solucao = Join-Path $base "MedicalPrescription.slnx"
-$unitTests = Join-Path $base "MedicalPrescription.UnitTests\MedicalPrescription.UnitTests.csproj"
-
 $utf8 = New-Object System.Text.UTF8Encoding($false)
+
+$domain = Join-Path $base `
+    "MedicalPrescription.Domain\Entities\Prescricao.cs"
+
+$teste = Join-Path $base `
+    "MedicalPrescription.UnitTests\Entities\PrescricaoCriacaoAtomicaTests.cs"
+
+$arquivoBak = Join-Path $base "MedicalPrescription.slnx.bak"
+$solucao = Join-Path $base "MedicalPrescription.slnx"
+
+$unitTests = Join-Path $base `
+    "MedicalPrescription.UnitTests\MedicalPrescription.UnitTests.csproj"
+
+$integrationTests = Join-Path $base `
+    "MedicalPrescription.IntegrationTests\MedicalPrescription.IntegrationTests.csproj"
 
 Set-Location $raiz
 
-if ((git branch --show-current).Trim() -ne "refactor/backend") {
-    throw "Execute na branch refactor/backend."
+if ((git branch --show-current).Trim() -ne "refactor/domain-final") {
+    throw "Execute na branch refactor/domain-final."
 }
 
-if (-not (Test-Path $solucao)) {
-    throw "Solucao nao encontrada."
+foreach ($arquivo in @($domain, $solucao, $unitTests, $integrationTests)) {
+    if (-not (Test-Path $arquivo)) {
+        throw "Arquivo nao encontrado: $arquivo"
+    }
 }
 
-# Validar Docker Desktop
-docker info --format '{{.ServerVersion}}'
+$relDomain = "backend/MedicalPrescription/MedicalPrescription.Domain/Entities/Prescricao.cs"
 
-if ($LASTEXITCODE -ne 0) {
-    throw "Docker Desktop nao esta disponivel."
+if (@(git status --porcelain -- $relDomain).Count -gt 0) {
+    throw "Prescricao.cs possui alteracoes locais. Revise antes de executar."
 }
 
-function Salvar($relativo, $conteudo) {
-    $destino = Join-Path $pasta $relativo
+$backup = Join-Path $env:TEMP (
+    "MedicalPrescription-DomainFinal-" +
+    (Get-Date -Format "yyyyMMddHHmmssfff")
+)
 
-    New-Item -ItemType Directory -Force `
-        -Path (Split-Path $destino -Parent) | Out-Null
+New-Item -ItemType Directory -Force -Path $backup | Out-Null
 
-    [IO.File]::WriteAllText($destino, $conteudo, $utf8)
+$arquivos = @($domain, $teste, $arquivoBak)
+$originais = @{}
 
-    Write-Host "CRIADO: $relativo" -ForegroundColor Green
+foreach ($arquivo in $arquivos) {
+    if (Test-Path $arquivo) {
+        $destino = Join-Path $backup ([IO.Path]::GetFileName($arquivo))
+        Copy-Item $arquivo $destino -Force
+        $originais[$arquivo] = $destino
+    }
 }
 
-# Permitir nova execucao sem sobrescrever os testes.
-if (Test-Path $pasta) {
-    $esperados = @(
-        $projeto,
-        (Join-Path $pasta "MySqlFixture.cs"),
-        (Join-Path $pasta "PrescricaoPersistenciaTests.cs")
+try {
+    # ========================================
+    # 1. CORRIGIR A CRIACAO DA PRESCRICAO
+    # ========================================
+
+    $conteudo = [IO.File]::ReadAllText($domain)
+
+    $inicioMarcador = "    public static Prescricao CriarEstruturada("
+    $fimMarcador = "    public void AtualizarTextoLivre("
+
+    $inicio = $conteudo.IndexOf(
+        $inicioMarcador,
+        [StringComparison]::Ordinal
     )
 
-    foreach ($arquivo in $esperados) {
-        if (-not (Test-Path $arquivo)) {
-            throw "Projeto parcialmente criado: $arquivo"
-        }
+    $fim = $conteudo.IndexOf(
+        $fimMarcador,
+        [StringComparison]::Ordinal
+    )
+
+    if ($inicio -lt 0 -or $fim -le $inicio) {
+        throw "Estrutura de Prescricao.cs diferente da esperada."
     }
 
-    Write-Host "Projeto de integracao ja existe. Preservando arquivos." `
-        -ForegroundColor Yellow
-}
-else {
+    $novoMetodo = @'
+    public static Prescricao CriarEstruturada(
+        Guid pacienteId,
+        IEnumerable<PrescricaoItem> itens)
+    {
+        ArgumentNullException.ThrowIfNull(itens);
 
-    New-Item -ItemType Directory -Force -Path $pasta | Out-Null
+        if (pacienteId == Guid.Empty)
+            throw new ArgumentException(
+                "Paciente inválido.", nameof(pacienteId));
 
-    # ================================================
-    # 1. PROJETO DE TESTES
-    # ================================================
+        var novosItens = itens.ToList();
 
-    Salvar "$nome.csproj" @'
-<Project Sdk="Microsoft.NET.Sdk">
+        if (novosItens.Count == 0)
+            throw new ArgumentException(
+                "A prescrição deve conter pelo menos um medicamento.",
+                nameof(itens));
 
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
-  </PropertyGroup>
+        if (novosItens.Any(item => item is null))
+            throw new ArgumentException(
+                "A lista contém um item inválido.",
+                nameof(itens));
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageReference Include="Testcontainers.MySql" Version="4.16.0" />
-  </ItemGroup>
+        if (novosItens.Select(item => item.Id).Distinct().Count()
+            != novosItens.Count)
+            throw new ArgumentException(
+                "A lista contém itens duplicados.",
+                nameof(itens));
 
-  <ItemGroup>
-    <ProjectReference Include="..\MedicalPrescription.Infrastructure\MedicalPrescription.Infrastructure.csproj" />
-  </ItemGroup>
+        if (novosItens.Any(item => item.PrescricaoId != Guid.Empty))
+            throw new RegraNegocioException(
+                "Um item já pertence a outra prescrição.");
 
-  <ItemGroup>
-    <Using Include="Xunit" />
-  </ItemGroup>
+        var prescricao = new Prescricao(
+            pacienteId,
+            TipoPrescricao.Estruturada);
 
-</Project>
+        foreach (var item in novosItens)
+            prescricao.AdicionarItem(item);
+
+        return prescricao;
+    }
+
 '@
 
-    # ================================================
-    # 2. FIXTURE MYSQL
-    # ================================================
+    $conteudo = $conteudo.Remove(
+        $inicio,
+        $fim - $inicio
+    ).Insert($inicio, $novoMetodo + "`r`n")
 
-    Salvar "MySqlFixture.cs" @'
-using MedicalPrescription.Infrastructure.Persistence.Context;
-using Microsoft.EntityFrameworkCore;
-using Testcontainers.MySql;
+    # Limpeza pontual de formatacao
+    $conteudo = $conteudo.Replace(
+        "using MedicalPrescription.Domain.Exceptions;`r`n`r`nusing",
+        "using MedicalPrescription.Domain.Exceptions;`r`nusing"
+    )
 
-namespace MedicalPrescription.IntegrationTests;
+    $conteudo = [regex]::Replace(
+        $conteudo,
+        '(\r?\n    \})\r?\n(    public void RemoverItem)',
+        '$1' + "`r`n`r`n" + '$2'
+    )
 
-public sealed class MySqlFixture : IAsyncLifetime
-{
-    private readonly MySqlContainer _container =
-        new MySqlBuilder("mysql:8.4").Build();
+    [IO.File]::WriteAllText($domain, $conteudo, $utf8)
 
-    public MedicalPrescriptionDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<MedicalPrescriptionDbContext>()
-            .UseMySql(
-                _container.GetConnectionString(),
-                new MySqlServerVersion(new Version(8, 4, 0)))
-            .Options;
+    Write-Host "Validacao antecipada implementada." `
+        -ForegroundColor Green
 
-        return new MedicalPrescriptionDbContext(options);
-    }
+    # ========================================
+    # 2. TESTES DE REGRESSAO
+    # ========================================
 
-    public async Task InitializeAsync()
-    {
-        await _container.StartAsync();
+    if (-not (Test-Path $teste)) {
 
-        await using var context = NovoContexto();
-
-        // Aplica as migrations reais no banco temporario.
-        await context.Database.MigrateAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _container.DisposeAsync();
-    }
-}
-'@
-
-    # ================================================
-    # 3. TESTES DE PERSISTENCIA
-    # ================================================
-
-    Salvar "PrescricaoPersistenciaTests.cs" @'
+        $codigoTestes = @'
 using MedicalPrescription.Domain.Entities;
-using MedicalPrescription.Infrastructure.Persistence.Repositories;
-using Microsoft.EntityFrameworkCore;
+using MedicalPrescription.Domain.Exceptions;
+using Xunit;
 
-namespace MedicalPrescription.IntegrationTests;
+namespace MedicalPrescription.UnitTests.Entities;
 
-public sealed class PrescricaoPersistenciaTests
-    : IClassFixture<MySqlFixture>
+public sealed class PrescricaoCriacaoAtomicaTests
 {
-    private readonly MySqlFixture _fixture;
-
-    public PrescricaoPersistenciaTests(MySqlFixture fixture)
+    [Fact]
+    public void CriarEstruturada_ComItemDeOutraPrescricao_NaoDeveAlterarVinculos()
     {
-        _fixture = fixture;
+        var vinculado = NovoItem();
+
+        var origem = Prescricao.CriarEstruturada(
+            Guid.NewGuid(), new[] { vinculado });
+
+        var novo = NovoItem();
+
+        Assert.Throws<RegraNegocioException>(() =>
+            Prescricao.CriarEstruturada(
+                Guid.NewGuid(), new[] { novo, vinculado }));
+
+        Assert.Equal(Guid.Empty, novo.PrescricaoId);
+        Assert.Equal(origem.Id, vinculado.PrescricaoId);
+        Assert.Same(vinculado, Assert.Single(origem.Itens));
     }
 
     [Fact]
-    public async Task SubstituirItens_DeveExcluirAntigosEPersistirNovos()
+    public void CriarEstruturada_ComItemDuplicado_NaoDeveModificarVinculo()
     {
-        // Arrange: criar uma prescricao com um medicamento.
-        var paciente = new Paciente("Paciente Integracao");
+        var item = NovoItem();
 
-        var prescricao = Prescricao.CriarEstruturada(
-            paciente.Id,
-            new[] { NovoItem("Original", 100m) });
+        Assert.Throws<ArgumentException>(() =>
+            Prescricao.CriarEstruturada(
+                Guid.NewGuid(), new[] { item, item }));
 
-        var idOriginal = prescricao.Itens.Single().Id;
-
-        await using (var context = _fixture.NovoContexto())
-        {
-            context.Pacientes.Add(paciente);
-
-            var repository = new PrescricaoWriteRepository(context);
-
-            await repository.AdicionarAsync(prescricao);
-            await context.SaveChangesAsync();
-        }
-
-        // Act: carregar agregado rastreado e substituir os itens.
-        await using (var context = _fixture.NovoContexto())
-        {
-            var repository = new PrescricaoWriteRepository(context);
-
-            var agregado = await repository.ObterParaEscritaAsync(
-                prescricao.Id);
-
-            Assert.NotNull(agregado);
-
-            agregado.SubstituirItens(new[]
-            {
-                NovoItem("Novo medicamento A", 250m),
-                NovoItem("Novo medicamento B", 500m)
-            });
-
-            await context.SaveChangesAsync();
-        }
-
-        // Assert: consultar com novo DbContext para verificar o banco.
-        await using (var context = _fixture.NovoContexto())
-        {
-            var itens = await context.PrescricaoItens
-                .AsNoTracking()
-                .Where(i => i.PrescricaoId == prescricao.Id)
-                .ToListAsync();
-
-            Assert.Equal(2, itens.Count);
-
-            Assert.DoesNotContain(
-                itens,
-                item => item.Id == idOriginal);
-
-            Assert.Contains(
-                itens,
-                item =>
-                    item.NomeMedicamento == "Novo medicamento A" &&
-                    item.Dosagem.Quantidade == 250m);
-
-            Assert.Contains(
-                itens,
-                item =>
-                    item.NomeMedicamento == "Novo medicamento B" &&
-                    item.Dosagem.Quantidade == 500m);
-
-            Assert.All(
-                itens,
-                item => Assert.Equal(prescricao.Id, item.PrescricaoId));
-        }
+        Assert.Equal(Guid.Empty, item.PrescricaoId);
     }
 
     [Fact]
-    public async Task ExcluirPrescricao_DeveExcluirItensEPreservarPaciente()
+    public void CriarEstruturada_ComItemNulo_NaoDeveModificarVinculo()
     {
-        // Arrange
-        var paciente = new Paciente("Paciente Exclusao");
+        var item = NovoItem();
 
-        var prescricao = Prescricao.CriarEstruturada(
-            paciente.Id,
-            new[] { NovoItem("Medicamento teste", 100m) });
+        Assert.Throws<ArgumentException>(() =>
+            Prescricao.CriarEstruturada(
+                Guid.NewGuid(),
+                new PrescricaoItem[] { item, null! }));
 
-        await using (var context = _fixture.NovoContexto())
-        {
-            context.Pacientes.Add(paciente);
-            context.Prescricoes.Add(prescricao);
-
-            await context.SaveChangesAsync();
-        }
-
-        // Act
-        await using (var context = _fixture.NovoContexto())
-        {
-            var repository = new PrescricaoWriteRepository(context);
-
-            var agregado = await repository.ObterParaEscritaAsync(
-                prescricao.Id);
-
-            Assert.NotNull(agregado);
-
-            repository.Remover(agregado);
-
-            await context.SaveChangesAsync();
-        }
-
-        // Assert
-        await using (var context = _fixture.NovoContexto())
-        {
-            Assert.False(await context.Prescricoes
-                .AnyAsync(p => p.Id == prescricao.Id));
-
-            Assert.False(await context.PrescricaoItens
-                .AnyAsync(i => i.PrescricaoId == prescricao.Id));
-
-            Assert.True(await context.Pacientes
-                .AnyAsync(p => p.Id == paciente.Id));
-        }
+        Assert.Equal(Guid.Empty, item.PrescricaoId);
     }
 
     [Fact]
-    public async Task ConsultarDetalhes_NaoDeveRastrearEntidades()
+    public void CriarEstruturada_ComItensValidos_DeveVincularTodos()
     {
-        // Arrange
-        var paciente = new Paciente("Paciente Consulta");
+        var primeiro = NovoItem();
+        var segundo = NovoItem();
 
         var prescricao = Prescricao.CriarEstruturada(
-            paciente.Id,
-            new[] { NovoItem("Medicamento consulta", 300m) });
+            Guid.NewGuid(), new[] { primeiro, segundo });
 
-        await using (var context = _fixture.NovoContexto())
-        {
-            context.Pacientes.Add(paciente);
-            context.Prescricoes.Add(prescricao);
-
-            await context.SaveChangesAsync();
-        }
-
-        // Act
-        await using (var context = _fixture.NovoContexto())
-        {
-            var repository = new PrescricaoReadRepository(context);
-
-            var resultado = await repository.ObterPorIdAsync(
-                prescricao.Id);
-
-            // Assert
-            Assert.NotNull(resultado);
-
-            Assert.Equal(prescricao.Id, resultado.Id);
-            Assert.Equal(paciente.Id, resultado.PacienteId);
-
-            var item = Assert.Single(resultado.Itens);
-
-            Assert.Equal("Medicamento consulta", item.NomeMedicamento);
-            Assert.Equal(300m, item.Dose);
-            Assert.Equal("mg", item.UnidadeMedida);
-
-            Assert.Empty(context.ChangeTracker.Entries());
-        }
+        Assert.Equal(2, prescricao.Itens.Count);
+        Assert.Equal(prescricao.Id, primeiro.PrescricaoId);
+        Assert.Equal(prescricao.Id, segundo.PrescricaoId);
     }
 
-    private static PrescricaoItem NovoItem(string nome, decimal dose)
+    private static PrescricaoItem NovoItem()
     {
         return new PrescricaoItem(
             medicamentoId: null,
-            nomeMedicamento: nome,
+            nomeMedicamento: "Medicamento de teste",
             formaFarmaceutica: "Comprimido",
-            dose: dose,
+            dose: 250m,
             unidadeMedida: "mg",
             frequencia: "A cada 8 horas",
             inicioTratamento: new DateOnly(2026, 11, 17),
@@ -338,72 +238,88 @@ public sealed class PrescricaoPersistenciaTests
     }
 }
 '@
-}
 
-# ================================================
-# 4. ADICIONAR PROJETO A SOLUCAO
-# ================================================
+        [IO.File]::WriteAllText($teste, $codigoTestes, $utf8)
 
-$conteudo = [IO.File]::ReadAllText($solucao)
-
-if (-not $conteudo.Contains(
-    "MedicalPrescription.IntegrationTests.csproj"
-)) {
-
-    $marcador = '<Project Path="MedicalPrescription.UnitTests/MedicalPrescription.UnitTests.csproj" />'
-
-    if (-not $conteudo.Contains($marcador)) {
-        throw "Ponto de insercao nao encontrado na solucao."
+        Write-Host "Quatro testes de regressao criados." `
+            -ForegroundColor Green
     }
 
-    $backup = "$solucao.bak"
+    # ========================================
+    # 3. REMOVER BACKUP DA SOLUCAO
+    # ========================================
 
-    Copy-Item $solucao $backup -Force
+    if (Test-Path $arquivoBak) {
+        Remove-Item $arquivoBak -Force
+        Write-Host "Arquivo .slnx.bak removido." `
+            -ForegroundColor Green
+    }
 
-    $novoProjeto = '<Project Path="MedicalPrescription.IntegrationTests/MedicalPrescription.IntegrationTests.csproj" />'
+    # ========================================
+    # 4. COMPILACAO
+    # ========================================
 
-    $conteudo = $conteudo.Replace(
-        $marcador,
-        $marcador + "`r`n    " + $novoProjeto
-    )
+    Write-Host "`nCompilando..." -ForegroundColor Cyan
 
-    [IO.File]::WriteAllText($solucao, $conteudo, $utf8)
+    dotnet build $solucao
 
-    Write-Host "Projeto adicionado a solucao." -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) {
+        throw "Build falhou."
+    }
+
+    # ========================================
+    # 5. TESTES UNITARIOS
+    # ========================================
+
+    Write-Host "`nTestes unitarios..." -ForegroundColor Cyan
+
+    dotnet test $unitTests --no-build
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Testes unitarios falharam."
+    }
+
+    # ========================================
+    # 6. TESTES DE INTEGRACAO
+    # ========================================
+
+    Write-Host "`nTestes MySQL..." -ForegroundColor Cyan
+
+    dotnet test $integrationTests --no-build
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Testes de integracao falharam."
+    }
+
+    # ========================================
+    # 7. VALIDACAO GIT
+    # ========================================
+
+    git diff --check -- backend/
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Falha na verificacao de formatacao."
+    }
+
+    Write-Host "`nDOMAIN VALIDADO COM SUCESSO!" `
+        -ForegroundColor Green
+}
+catch {
+    $motivo = $_
+
+    foreach ($arquivo in $arquivos) {
+        if ($originais.ContainsKey($arquivo)) {
+            Copy-Item $originais[$arquivo] $arquivo -Force
+        }
+        elseif (Test-Path $arquivo) {
+            Remove-Item $arquivo -Force
+        }
+    }
+
+    throw "Alteracoes revertidas. Motivo: $motivo"
 }
 
-# ================================================
-# 5. RESTORE, BUILD E TESTES
-# ================================================
-
-Write-Host "`nCompilando solucao..." -ForegroundColor Cyan
-
-dotnet build $solucao
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Build falhou. Arquivos mantidos para diagnostico."
-}
-
-Write-Host "`nExecutando os 42 testes unitarios..." `
-    -ForegroundColor Cyan
-
-dotnet test $unitTests --no-build
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Testes unitarios falharam."
-}
-
-Write-Host "`nExecutando integracao com MySQL real..." `
-    -ForegroundColor Cyan
-
-dotnet test $projeto --no-build --logger "console;verbosity=normal"
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Testes de integracao falharam. Verifique o erro."
-}
-
-Write-Host "`nTODOS OS TESTES PASSARAM!" `
-    -ForegroundColor Green
-
-Write-Host "`nAlteracoes:" -ForegroundColor Cyan
+Write-Host "`nArquivos alterados:" -ForegroundColor Cyan
 git status --short
+
+Write-Host "`nBackup: $backup" -ForegroundColor Cyan
