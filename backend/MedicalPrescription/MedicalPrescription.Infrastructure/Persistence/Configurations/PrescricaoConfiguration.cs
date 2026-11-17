@@ -1,4 +1,4 @@
-﻿using MedicalPrescription.Domain.Entities;
+using MedicalPrescription.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -33,6 +33,10 @@ public sealed class PrescricaoConfiguration
         builder.Property(x => x.CriadaEmUtc)
             .HasColumnName("criada_em_utc")
             .HasColumnType("datetime(6)")
+            .HasConversion(
+                value => value,
+                value => DateTime.SpecifyKind(
+                    value, DateTimeKind.Utc))
             .IsRequired();
 
         builder.HasOne<Paciente>()
