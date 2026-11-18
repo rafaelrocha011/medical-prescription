@@ -25,12 +25,12 @@ docker info
 
 > O ultimo comando so funciona se o Docker Engine estiver em execucao. Nao e necessario ter Visual Studio, MySQL, .NET SDK ou Node.js instalados para o fluxo Docker abaixo.
 
-### 2. Clonar a branch com a aplicacao completa
+### 2. Clonar a versao de entrega
 
-A integracao da solucao foi realizada em **`develop`**. Ate que `main` seja atualizada, use explicitamente essa branch:
+A versao de entrega validada esta na branch **`main`**. Use essa branch explicitamente para obter o codigo destinado a avaliacao:
 
 ```powershell
-git clone --branch develop https://github.com/rafaelrocha011/medical-prescription.git
+git clone --branch main https://github.com/rafaelrocha011/medical-prescription.git
 cd medical-prescription
 ```
 
@@ -152,7 +152,7 @@ O volume nomeado `mysql_data` preserva as informacoes entre reinicializacoes. **
 Para reconstruir apos atualizacoes do codigo:
 
 ```powershell
-git pull --ff-only origin develop
+git pull --ff-only origin main
 docker compose up -d --build
 ```
 
@@ -237,7 +237,7 @@ npm test -- --watch=false
 
 Os testes de integracao utilizam MySQL temporario via Testcontainers; requerem Docker Engine acessivel. Eles nao utilizam o volume `mysql_data` do Compose.
 
-**GitHub Actions:** o workflow `.github/workflows/ci.yml` executa build e testes em Pull Requests e em pushes na `develop`. Apos sucesso na `develop`, publica as imagens `api`, `frontend` e `migrate` no GitHub Container Registry (GHCR), com tag `sha-<commit>`. O workflow `deploy.yml` permite **deploy manual de homologacao**, mas exige runner e credenciais configurados; publicar imagem nao equivale a executar deploy. Mais detalhes em [docs/CI-CD.md](docs/CI-CD.md).
+**GitHub Actions:** o workflow `.github/workflows/ci.yml` executa build, testes .NET/Angular e o teste de primeiro boot em MySQL vazio nos Pull Requests e pushes para `develop` e `main`. Em pushes aprovados nessas branches, publica as imagens `api`, `frontend` e `migrate` no GitHub Container Registry (GHCR), identificadas por `sha-<commit>`. O workflow `deploy.yml` permite **deploy manual de homologacao**, mas exige runner e credenciais configurados; publicar imagem nao equivale a executar deploy. Mais detalhes em [docs/CI-CD.md](docs/CI-CD.md).
 
 ## Banco, modelo e limitacoes
 
