@@ -89,6 +89,8 @@ A construcao inicial pode levar mais tempo por causa do download das imagens e d
 ### 5. Abrir e testar
 
 - **Aplicacao:** http://localhost:4200/prescricoes
+- **Swagger UI (documentacao interativa):** http://localhost:5080/swagger
+- **Especificacao OpenAPI JSON:** http://localhost:5080/openapi/v1.json
 - **Consulta REST:** http://localhost:5080/api/prescricoes
 - **Consulta OData:** http://localhost:5080/odata/ConsultaPrescricoes
 - **API via Nginx:** http://localhost:4200/api/prescricoes
@@ -100,6 +102,8 @@ Invoke-RestMethod "http://localhost:5080/api/prescricoes?pagina=1&tamanhoPagina=
 ```
 
 O Angular acessa a API pelo mesmo host usando o proxy reverso do **Nginx** (`/api/` e `/odata/`); nao precisa configurar CORS nem `host.docker.internal` nesse modo. O projeto roda em HTTP local, apropriado apenas para avaliacao e desenvolvimento.
+
+**Swagger UI:** disponivel somente no ambiente `Development` definido no `docker-compose.yml` local. Ele usa a especificacao OpenAPI nativa do .NET 9 e permite visualizar e testar as rotas REST pelo navegador, sem Postman. Nao e habilitado no ambiente `Production` do deploy manual.
 
 **Primeiro acesso:** quando a API roda com `ASPNETCORE_ENVIRONMENT=Development`, o inicializador de desenvolvimento insere pacientes e medicamentos de exemplo caso os respectivos catalogos estejam vazios. As prescricoes sao criadas pelo usuario; o banco nao precisa conter prescricoes inicialmente.
 
