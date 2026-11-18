@@ -27,7 +27,7 @@ docker info
 
 ### 2. Clonar a versão de entrega
 
-A versão de entrega validada está na branch **`main`**. Use essa branch explicitamente para obter o código destinado a avaliação:
+A versão de entrega validada está na branch **`main`**. Use essa branch explicitamente para obter o código destinado à avaliação:
 
 ```powershell
 git clone --branch main https://github.com/rafaelrocha011/medical-prescription.git
@@ -103,11 +103,11 @@ Invoke-RestMethod "http://localhost:5080/api/prescricoes?pagina=1&tamanhoPagina=
 
 O Angular acessa a API pelo mesmo host usando o proxy reverso do **Nginx** (`/api/` e `/odata/`); não precisa configurar CORS nem `host.docker.internal` nesse modo. O projeto roda em HTTP local, apropriado apenas para avaliação e desenvolvimento.
 
-**Swagger UI:** disponível somente no ambiente `Development` definido no `docker-compose.yml` local. Ele usa a especificação OpenAPI nativa do .NET 9 e permite visualizar e testar as rotas REST pelo navegador, sem Postman. Não e habilitado no ambiente `Production` do deploy manual.
+**Swagger UI:** disponível somente no ambiente `Development` definido no `docker-compose.yml` local. Ele usa a especificação OpenAPI nativa do .NET 9 e permite visualizar e testar as rotas REST pelo navegador, sem Postman. Não é habilitado no ambiente `Production` do deploy manual.
 
-**Primeiro acesso:** quando a API roda com `ASPNETCORE_ENVIRONMENT=Development`, o inicializador de desenvolvimento insere pacientes e medicamentos de exemplo caso os respectivos catálogos estejam vazios. As prescrições sao criadas pelo usuário; o banco não precisa conter prescrições inicialmente.
+**Primeiro acesso:** quando a API roda com `ASPNETCORE_ENVIRONMENT=Development`, o inicializador de desenvolvimento insere pacientes e medicamentos de exemplo caso os respectivos catálogos estejam vazios. As prescrições são criadas pelo usuário; o banco não precisa conter prescrições inicialmente.
 
-### Garantir o seed na primeira instalacao
+### Garantir o seed na primeira instalação
 
 O seed não depende de importar `database/schema.sql`: o serviço `migrate` aplica as migrations, e a API, iniciada em **Development** pelo `docker-compose.yml`, executa `DevelopmentDataSeeder.SeedAsync`. O método insere **Paciente Exemplo Um**, **Paciente Exemplo Dois**, **Medicamento Exemplo A** e **Medicamento Exemplo B** quando cada catálogo estiver completamente vazio.
 
@@ -182,7 +182,7 @@ Depois, reinicie os serviços com `docker compose up -d` e use as novas URLs. **
 | `migrate` finalizou com erro | Consulte `docker compose logs migrate` e `docker compose logs mysql` |
 | API ou frontend não ficam saudáveis | Consulte `docker compose ps -a` e os logs do serviço |
 | Lista vazia | Verifique se a API responde; em um banco novo pode não haver prescrições |
-| Problemas após alterar credenciais | As senhas não sao redefinidas em um volume MySQL já inicializado |
+| Problemas após alterar credenciais | As senhas não são redefinidas em um volume MySQL já inicializado |
 
 **Atenção ao banco:** nunca use `down -v` ou remova volumes como primeira tentativa de correção. Isso apaga os dados persistidos.
 
@@ -223,7 +223,7 @@ O backend utiliza Clean Architecture, SOLID e separação lógica de comandos e 
 
 - Criação, consulta, listagem, edição e exclusão de prescrições.
 - Prescrições não estruturadas (texto livre) e estruturadas (itens de medicamentos).
-- Medicamentos do catálogo ou preenchimento manual, dosagem com até três casas decimais, frequência, início, duração/uso continuo, via, prazo e observações.
+- Medicamentos do catálogo ou preenchimento manual, dosagem com até três casas decimais, frequência, início, duração/uso contínuo, via, prazo e observações.
 - Listagem paginada com nome do paciente e detalhes expansíveis.
 - OData para consultas; erros HTTP no formato ProblemDetails.
 
@@ -247,5 +247,5 @@ Os testes de integração utilizam MySQL temporário via Testcontainers; requere
 
 - O esquema é gerenciado pelas migrations EF Core; o contêiner `migrate` as aplica na inicialização.
 - Modelo relacional em `database/schema.sql`; diagrama ER em `docs/DER-MedicalPrescription.md`.
-- Este projeto demonstrativo **não oferece** autenticação clínica, assinatura digital, homologação/certificação SBIS ou infraestrutura para prontuario real. Use somente dados fictícios.
+- Este projeto demonstrativo **não oferece** autenticação clínica, assinatura digital, homologação/certificação SBIS ou infraestrutura para prontuário real. Use somente dados fictícios.
 - Credenciais locais ficam em `.env` (não versionado); para produção seria necessário gerenciar segredos, HTTPS, autorização, auditoria e backups.
