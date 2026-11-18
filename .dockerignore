@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+**/bin/
+**/obj/
+**/TestResults/
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+frontend/
+docs/
+scripts/
+*.log
+*.bak
