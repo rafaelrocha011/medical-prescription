@@ -103,6 +103,17 @@ try {
     Write-Host 'Conferindo seed no primeiro boot...' -ForegroundColor Cyan
     Test-Catalogos -MaxTentativas 60
 
+    Write-Host 'Conferindo Swagger UI e documento OpenAPI...' -ForegroundColor Cyan
+    $swagger = Invoke-WebRequest -Uri "http://127.0.0.1:$ApiPort/swagger/index.html" -TimeoutSec 20
+    if ($swagger.StatusCode -ne 200 -or $swagger.Content -notmatch 'Swagger UI') {
+        throw 'Swagger UI nao retornou a interface esperada.'
+    }
+    $openApi = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/openapi/v1.json" -TimeoutSec 20
+    if (-not $openApi.openapi -or -not $openApi.paths) {
+        throw 'OpenAPI JSON nao retornou os metadados esperados.'
+    }
+    Write-Host 'OK: Swagger UI e OpenAPI JSON acessiveis.' -ForegroundColor Green
+
     Write-Host 'Reiniciando API para verificar idempotencia...' -ForegroundColor Cyan
     Invoke-Compose -Arguments @('restart', 'api')
     Test-Catalogos -MaxTentativas 60
