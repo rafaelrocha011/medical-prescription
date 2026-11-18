@@ -1,0 +1,32 @@
+<a class="skip-link" href="#conteudo-principal">Ir para o conte&uacute;do</a>
+<div class="app-shell">
+  <header class="app-header">
+    <button type="button" class="menu-toggle" aria-label="Abrir ou fechar menu"
+      aria-controls="menu-principal" [attr.aria-expanded]="menuAberto()"
+      (click)="alternarMenu()">&#9776;</button>
+    <a routerLink="/prescricoes" class="marca" (click)="fecharMenu()">
+      <span class="marca-icone" aria-hidden="true">+</span>
+      <span>MedicalPrescription</span>
+    </a>
+    <span class="modulo">Gest&atilde;o de prescri&ccedil;&otilde;es m&eacute;dicas</span>
+  </header>
+  <div class="app-body">
+    <aside id="menu-principal" class="sidebar" [class.aberto]="menuAberto()" aria-label="Menu principal">
+      <nav aria-label="Navega&ccedil;&atilde;o principal">
+        <p class="menu-titulo">PRINCIPAL</p>
+        <a routerLink="/prescricoes" routerLinkActive="ativo" ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: true }" (click)="fecharMenu()">Prescri&ccedil;&otilde;es</a>
+      </nav>
+    </aside>
+    @if (menuAberto()) {
+      <button type="button" class="menu-overlay" aria-label="Fechar menu" (click)="fecharMenu()"></button>
+    }
+    <div class="conteudo">
+      <div id="conteudo-principal" class="conteudo-principal"><router-outlet /></div>
+      <footer class="app-footer">
+        <span>MedicalPrescription</span>
+        <span>&copy; {{ anoAtual }} &middot; Sistema demonstrativo</span>
+      </footer>
+    </div>
+  </div>
+</div>

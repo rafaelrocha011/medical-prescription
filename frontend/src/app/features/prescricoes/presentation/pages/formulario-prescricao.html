@@ -1,0 +1,157 @@
+<main class="pagina">
+  <a routerLink="/prescricoes" class="voltar">Voltar para prescrições</a>
+
+  <header>
+    <span class="subtitulo">GESTÃO DE PRESCRIÇÕES</span>
+    <h1>{{ titulo }}</h1>
+    <p>Preencha as informações da prescrição. Os campos marcados com * são obrigatórios.</p>
+  </header>
+
+  <form [formGroup]="formulario" (ngSubmit)="salvar()">
+    <section class="painel">
+      <h2>Dados da prescrição</h2>
+      <div class="campos">
+        <label>
+          Paciente *
+          <select formControlName="pacienteId">
+            <option value="">Selecione um paciente</option>
+            @for (paciente of pacientes(); track paciente.id) {
+              <option [value]="paciente.id">{{ paciente.nomeCompleto }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          Tipo de prescrição *
+          <select formControlName="tipo" (change)="alterarTipo()">
+            <option [ngValue]="tipos.NaoEstruturada">Não estruturada</option>
+            <option [ngValue]="tipos.Estruturada">Estruturada</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    @if (formulario.controls.tipo.value === tipos.NaoEstruturada) {
+      <section class="painel">
+        <h2>Receita em texto livre</h2>
+        <label>
+          Descrição da prescrição *
+          <textarea rows="7" formControlName="textoLivre"
+            placeholder="Informe o conteúdo da receita"></textarea>
+        </label>
+      </section>
+    } @else {
+      <section class="painel" formArrayName="itens">
+        <div class="secao-cabecalho">
+          <h2>Medicamentos</h2>
+          <button type="button" class="botao-secundario" (click)="adicionarItem()">
+            Adicionar medicamento
+          </button>
+        </div>
+
+        @for (item of itens.controls; track item; let i = $index) {
+          <div class="medicamento" [formGroupName]="i">
+            <div class="secao-cabecalho">
+              <h3>Medicamento {{ i + 1 }}</h3>
+              <button type="button" class="remover"
+                [disabled]="itens.length === 1" (click)="removerItem(i)">
+                Remover
+              </button>
+            </div>
+
+            <div class="campos">
+              <app-busca-medicamento class="busca-item"
+                [indice]="i"
+                [nomeSelecionado]="item.controls.medicamentoId.value ? item.controls.nomeMedicamento.value : null"
+                (selecionado)="selecionarMedicamento(i, $event)"
+                (manual)="usarMedicamentoManual(i)" />
+
+              <label>
+                Nome do medicamento *
+                <input formControlName="nomeMedicamento"
+                  [readOnly]="!!item.controls.medicamentoId.value"
+                  placeholder="Informe o nome ou selecione no catálogo" />
+                @if (item.controls.medicamentoId.value) {
+                  <span class="ajuda">Para digitar manualmente, clique em “Não cadastrado”.</span>
+                }
+              </label>
+
+              <label>
+                Forma farmacêutica *
+                <input formControlName="formaFarmaceutica" placeholder="Ex.: Comprimido" />
+              </label>
+
+              <label>
+                Dose *
+                <input type="number" step="0.001" min="0.001"
+                  max="999999999.999" formControlName="dose" />
+                <span class="ajuda">Dose positiva, com até 3 casas decimais (ex.: 12.345).</span>
+                @if (item.controls.dose.touched && item.controls.dose.invalid) {
+                  <span class="erro-campo" role="alert">Informe uma dosagem válida.</span>
+                }
+              </label>
+
+              <label>
+                Unidade de medida *
+                <input formControlName="unidadeMedida" placeholder="Ex.: mg" maxlength="20" />
+              </label>
+
+              <label>
+                Frequência *
+                <input formControlName="frequencia" placeholder="Ex.: A cada 8 horas" />
+              </label>
+
+              <label>
+                Início do tratamento *
+                <input type="date" formControlName="inicioTratamento" />
+              </label>
+
+              <label>
+                Duração em dias
+                <input type="number" min="1" step="1"
+                  formControlName="duracaoTratamentoDias"
+                  [required]="!item.controls.usoContinuo.value" />
+                @if (item.controls.usoContinuo.value) {
+                  <span class="ajuda">Não se aplica a tratamentos de uso contínuo.</span>
+                }
+              </label>
+
+              <label>
+                Via de administração *
+                <input formControlName="viaAdministracao" placeholder="Ex.: Oral" />
+              </label>
+
+              <label>
+                Prazo de utilização *
+                <input formControlName="prazoUtilizacao" placeholder="Ex.: 7 dias" />
+              </label>
+            </div>
+
+            <label class="checkbox">
+              <input type="checkbox" formControlName="usoContinuo"
+                (change)="alterarUsoContinuo(i)" />
+              Tratamento de uso contínuo
+            </label>
+
+            <label>
+              Observações
+              <textarea rows="2" formControlName="observacao"></textarea>
+            </label>
+          </div>
+        }
+      </section>
+    }
+
+    @if (erro()) {
+      <div class="erro" role="alert">{{ erro() }}</div>
+    }
+
+    <div class="acoes">
+      <a routerLink="/prescricoes" class="botao-secundario">Cancelar</a>
+      <button type="submit" class="botao-primario"
+        [disabled]="salvando() || carregandoCatalogos()">
+        {{ salvando() ? 'Salvando...' : rotuloSalvar }}
+      </button>
+    </div>
+  </form>
+</main>

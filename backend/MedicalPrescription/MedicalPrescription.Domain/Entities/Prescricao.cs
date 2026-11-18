@@ -1,4 +1,4 @@
-﻿
+using MedicalPrescription.Domain.Exceptions;
 using MedicalPrescription.Domain.Enums;
 
 namespace MedicalPrescription.Domain.Entities;
@@ -49,19 +49,40 @@ public class Prescricao
         Guid pacienteId,
         IEnumerable<PrescricaoItem> itens)
     {
-        if (itens is null)
-            throw new ArgumentNullException(nameof(itens));
+        ArgumentNullException.ThrowIfNull(itens);
+
+        if (pacienteId == Guid.Empty)
+            throw new ArgumentException(
+                "Paciente invÃ¡lido.", nameof(pacienteId));
+
+        var novosItens = itens.ToList();
+
+        if (novosItens.Count == 0)
+            throw new ArgumentException(
+                "A prescriÃ§Ã£o deve conter pelo menos um medicamento.",
+                nameof(itens));
+
+        if (novosItens.Any(item => item is null))
+            throw new ArgumentException(
+                "A lista contÃ©m um item invÃ¡lido.",
+                nameof(itens));
+
+        if (novosItens.Select(item => item.Id).Distinct().Count()
+            != novosItens.Count)
+            throw new ArgumentException(
+                "A lista contÃ©m itens duplicados.",
+                nameof(itens));
+
+        if (novosItens.Any(item => item.PrescricaoId != Guid.Empty))
+            throw new RegraNegocioException(
+                "Um item jÃ¡ pertence a outra prescriÃ§Ã£o.");
 
         var prescricao = new Prescricao(
             pacienteId,
             TipoPrescricao.Estruturada);
 
-        foreach (var item in itens)
+        foreach (var item in novosItens)
             prescricao.AdicionarItem(item);
-
-        if (prescricao._itens.Count == 0)
-            throw new ArgumentException(
-                "A prescrição deve conter pelo menos um medicamento.");
 
         return prescricao;
     }
@@ -69,7 +90,7 @@ public class Prescricao
     public void AtualizarTextoLivre(string textoLivre)
     {
         if (Tipo != TipoPrescricao.NaoEstruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "A prescrição não permite texto livre.");
 
         if (string.IsNullOrWhiteSpace(textoLivre))
@@ -82,35 +103,73 @@ public class Prescricao
     public void AdicionarItem(PrescricaoItem item)
     {
         if (Tipo != TipoPrescricao.Estruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "Não é possível adicionar itens a uma prescrição não estruturada.");
 
         ArgumentNullException.ThrowIfNull(item);
 
         if (_itens.Any(i => i.Id == item.Id))
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "O item já pertence à prescrição.");
 
         item.VincularPrescricao(Id);
         _itens.Add(item);
     }
 
+    public void SubstituirItens(IEnumerable<PrescricaoItem> itens)
+    {
+        if (Tipo != TipoPrescricao.Estruturada)
+            throw new RegraNegocioException(
+                "A prescricao nao e estruturada.");
+
+        ArgumentNullException.ThrowIfNull(itens);
+
+        var novosItens = itens.ToList();
+
+        if (novosItens.Count == 0)
+            throw new ArgumentException(
+                "Informe pelo menos um medicamento.");
+
+        if (novosItens.Any(item => item is null))
+            throw new ArgumentException(
+                "A lista contem um item invalido.");
+
+        if (novosItens.Select(item => item.Id).Distinct().Count()
+            != novosItens.Count)
+            throw new ArgumentException(
+                "A lista contem itens duplicados.");
+
+        // Validar todos os vinculos antes de alterar qualquer item.
+        if (novosItens.Any(item =>
+                item.PrescricaoId != Guid.Empty &&
+                item.PrescricaoId != Id))
+            throw new RegraNegocioException(
+                "Um item ja pertence a outra prescricao.");
+
+        foreach (var item in novosItens)
+            item.VincularPrescricao(Id);
+
+        _itens.Clear();
+        _itens.AddRange(novosItens);
+    }
+
     public void RemoverItem(Guid itemId)
     {
         if (Tipo != TipoPrescricao.Estruturada)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "A prescrição não é estruturada.");
 
         var item = _itens.FirstOrDefault(i => i.Id == itemId);
 
         if (item is null)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "Item não encontrado.");
 
         if (_itens.Count == 1)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "Uma prescrição estruturada deve conter pelo menos um medicamento.");
 
         _itens.Remove(item);
     }
 }
+

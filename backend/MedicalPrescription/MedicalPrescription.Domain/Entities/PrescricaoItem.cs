@@ -1,4 +1,5 @@
-﻿
+using MedicalPrescription.Domain.Exceptions;
+
 using MedicalPrescription.Domain.ValueObjects;
 
 namespace MedicalPrescription.Domain.Entities;
@@ -84,7 +85,7 @@ public class PrescricaoItem
 
         if (PrescricaoId != Guid.Empty &&
             PrescricaoId != prescricaoId)
-            throw new InvalidOperationException(
+            throw new RegraNegocioException(
                 "O item já pertence a outra prescrição.");
 
         PrescricaoId = prescricaoId;

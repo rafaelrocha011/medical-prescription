@@ -1,0 +1,154 @@
+<main class="pagina">
+  <header class="cabecalho">
+    <div>
+      <span class="subtitulo">GEST&Atilde;O DE PRESCRI&Ccedil;&Otilde;ES</span>
+      <h1>Prescri&ccedil;&otilde;es m&eacute;dicas</h1>
+      <p>Consulte e gerencie as prescri&ccedil;&otilde;es cadastradas.</p>
+    </div>
+    <div class="cabecalho-acoes">
+      <a routerLink="/prescricoes/nova" class="botao primario">Nova prescri&ccedil;&atilde;o</a>
+      <button class="botao secundario" type="button" (click)="atualizar()" [disabled]="carregando()">
+        Atualizar lista
+      </button>
+    </div>
+  </header>
+
+  <section class="painel" aria-labelledby="titulo-lista">
+    <div class="painel-cabecalho">
+      <h2 id="titulo-lista">Prescri&ccedil;&otilde;es cadastradas</h2>
+      <span>{{ totalRegistros() }} registro(s)</span>
+    </div>
+
+    @if (erro()) {
+      <div class="mensagem erro" role="alert">{{ erro() }}</div>
+    } @else if (carregando()) {
+      <div class="mensagem" role="status">Carregando prescri&ccedil;&otilde;es...</div>
+    } @else if (prescricoes().length === 0) {
+      <div class="mensagem">Nenhuma prescri&ccedil;&atilde;o encontrada.</div>
+    } @else {
+      <div class="tabela-container">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Data</th>
+              <th scope="col">Medicamentos</th>
+              <th scope="col">A&ccedil;&otilde;es</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of prescricoes(); track item.id) {
+              <tr>
+                <td>{{ item.nomePaciente }}</td>
+                <td>
+                  <span class="tipo" [class.estruturada]="item.tipo === tipoEstruturada">
+                    @if (item.tipo === tipoEstruturada) { Estruturada } @else { N&atilde;o estruturada }
+                  </span>
+                </td>
+                <td>{{ item.criadaEmUtc | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ item.quantidadeMedicamentos }}</td>
+                <td>
+                  <div class="acoes-registro">
+                    <button type="button" class="acao-link" data-testid="expand-details"
+                      [attr.aria-expanded]="idExpandido() === item.id"
+                      [attr.aria-controls]="'detalhes-' + item.id"
+                      (click)="alternarDetalhes(item)">
+                      {{ idExpandido() === item.id ? 'Ocultar' : 'Detalhes' }}
+                    </button>
+                    <a class="acao-link" [routerLink]="['/prescricoes', item.id, 'editar']">Editar</a>
+                    <button type="button" class="acao-link perigo" data-testid="delete"
+                      [disabled]="excluindo()" (click)="solicitarExclusao(item)">Excluir</button>
+                  </div>
+                </td>
+              </tr>
+              @if (idExpandido() === item.id) {
+                <tr class="linha-expandida">
+                  <td colspan="5">
+                    <div class="detalhes" [id]="'detalhes-' + item.id" role="region"
+                      [attr.aria-label]="'Detalhes da prescricao ' + item.id.slice(0, 8)">
+                      @if (carregandoDetalhe()) {
+                        <p role="status">Carregando detalhes...</p>
+                      } @else if (erroDetalhe()) {
+                        <p class="erro" role="alert">{{ erroDetalhe() }}</p>
+                      } @else if (detalhe(); as p) {
+                        <div class="resumo-detalhes">
+                          <div><span>Identificador</span><strong>{{ p.id }}</strong></div>
+                          <div><span>Paciente</span><strong>{{ p.nomePaciente }}</strong></div>
+                          <div><span>Tipo</span><strong>
+                            @if (p.tipo === tipoEstruturada) { Estruturada } @else { N&atilde;o estruturada }
+                          </strong></div>
+                          <div><span>Data</span><strong>{{ p.criadaEmUtc | date:'dd/MM/yyyy HH:mm' }}</strong></div>
+                        </div>
+                        @if (p.tipo !== tipoEstruturada) {
+                          <h3>Texto da prescri&ccedil;&atilde;o</h3>
+                          <p class="texto-livre">{{ p.textoLivre }}</p>
+                        } @else {
+                          <h3>Medicamentos prescritos ({{ p.itens.length }})</h3>
+                          <div class="itens-prescritos">
+                            @for (medicamento of p.itens; track medicamento.id) {
+                              <article class="medicamento">
+                                <h4>{{ medicamento.nomeMedicamento }}</h4>
+                                <dl class="informacoes">
+                                  <div><dt>Forma</dt><dd>{{ medicamento.formaFarmaceutica }}</dd></div>
+                                  <div><dt>Dosagem</dt><dd>{{ medicamento.dose }} {{ medicamento.unidadeMedida }}</dd></div>
+                                  <div><dt>Frequ&ecirc;ncia</dt><dd>{{ medicamento.frequencia }}</dd></div>
+                                  <div><dt>Via</dt><dd>{{ medicamento.viaAdministracao }}</dd></div>
+                                  <div><dt>In&iacute;cio</dt><dd>{{ medicamento.inicioTratamento }}</dd></div>
+                                  <div><dt>Dura&ccedil;&atilde;o</dt><dd>
+                                    @if (medicamento.usoContinuo) { Uso cont&iacute;nuo }
+                                    @else { {{ medicamento.duracaoTratamentoDias }} dias }
+                                  </dd></div>
+                                  <div><dt>Prazo de utiliza&ccedil;&atilde;o</dt><dd>{{ medicamento.prazoUtilizacao }}</dd></div>
+                                </dl>
+                                @if (medicamento.observacao) {
+                                  <p class="observacao">Observa&ccedil;&otilde;es: {{ medicamento.observacao }}</p>
+                                }
+                              </article>
+                            }
+                          </div>
+                        }
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <footer class="paginacao">
+      <span>P&aacute;gina {{ pagina() }} de {{ totalPaginas() || 1 }}</span>
+      <div class="acoes-paginacao">
+        <button type="button" (click)="anterior()" [disabled]="!podeVoltar()">Anterior</button>
+        <button type="button" (click)="proxima()" [disabled]="!podeAvancar()">Pr&oacute;xima</button>
+      </div>
+    </footer>
+  </section>
+</main>
+
+<dialog #modalExclusao class="modal-exclusao" aria-labelledby="titulo-exclusao"
+  aria-describedby="descricao-exclusao" (cancel)="aoCancelarDialogo($event)" (close)="aoFecharDialogo()">
+  <div class="modal-conteudo">
+    <h2 id="titulo-exclusao">Excluir prescri&ccedil;&atilde;o?</h2>
+    <p id="descricao-exclusao">
+      Esta a&ccedil;&atilde;o remover&aacute; a prescri&ccedil;&atilde;o e seus itens.
+      N&atilde;o poder&aacute; ser desfeita.
+    </p>
+    @if (itemParaExcluir(); as selecionado) {
+      <p class="identificador">Prescri&ccedil;&atilde;o: {{ selecionado.id.slice(0, 8) }}</p>
+    }
+    @if (erroExclusao()) {
+      <p class="erro" role="alert">{{ erroExclusao() }}</p>
+    }
+    <div class="acoes-modal">
+      <button type="button" class="botao secundario" (click)="cancelarExclusao()" [disabled]="excluindo()">Cancelar</button>
+      <button type="button" class="botao confirmar-perigo" data-testid="confirm-delete"
+        (click)="confirmarExclusao()" [disabled]="excluindo()">
+        @if (excluindo()) { Excluindo... } @else { Confirmar exclus&atilde;o }
+      </button>
+    </div>
+  </div>
+</dialog>

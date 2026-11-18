@@ -1,0 +1,65 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Obrigatorio}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Obrigatorio}
+      MYSQL_USER: ${MYSQL_USER:?Obrigatorio}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Obrigatorio}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/MedicalPrescription/Dockerfile
+      target: migrations
+    restart: "no"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__MySql: "Server=mysql;Port=3306;Database=${MYSQL_DATABASE:?Obrigatorio};User=${MYSQL_USER:?Obrigatorio};Password=${MYSQL_PASSWORD:?Obrigatorio}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/MedicalPrescription/Dockerfile
+      target: final
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__MySql: "Server=mysql;Port=3306;Database=${MYSQL_DATABASE:?Obrigatorio};User=${MYSQL_USER:?Obrigatorio};Password=${MYSQL_PASSWORD:?Obrigatorio}"
+    ports:
+      - "127.0.0.1:${API_PORT:-5080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: final
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-4200}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
