@@ -2,9 +2,9 @@ name: CI - MedicalPrescription
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
   push:
-    branches: [develop]
+    branches: [develop, main]
   workflow_dispatch:
 
 permissions:
@@ -94,7 +94,7 @@ jobs:
   images:
     name: Imagens Docker -> GitHub Packages
     needs: [backend, frontend, seed-smoke]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
