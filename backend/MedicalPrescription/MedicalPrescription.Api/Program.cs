@@ -40,6 +40,12 @@ if (app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // UI interativa para exploracao local, usando o documento OpenAPI nativo do .NET 9.
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/openapi/v1.json", "MedicalPrescription API v1");
+    });
 }
 
 app.UseHttpsRedirection();
