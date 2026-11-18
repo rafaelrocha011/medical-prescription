@@ -1,53 +1,74 @@
 # CI/CD - MedicalPrescription
 
-## 1. Integracao continua
+## Fluxo das branches e entrega
 
-Arquivo `.github/workflows/ci.yml`:
+- `develop`: integracao de funcionalidades, com CI automatico.
+- `release/1.0.0`: branch de preparacao da entrega, derivada de `develop`.
+- `main`: versao de entrega para o avaliador. O README principal ensina a instalar a partir desta branch.
 
-- Pull requests para `develop`: compila e testa .NET 9 + Angular 21; executa testes de integracao com Testcontainers MySQL no runner Linux do GitHub.
-- Push em `develop`: repete as validacoes; publica artefatos `api-net9`, `angular21-dist` e resultados de testes; so entao publica as imagens no GHCR.
-- Imagens geradas: `ghcr.io/OWNER/medical-prescription-{api,migrate,frontend}:sha-COMMIT` (substituir OWNER e COMMIT).
-- O build Docker so executa se ambos os jobs de verificacao forem aprovados.
+O fluxo recomendado e abrir um Pull Request de `release/1.0.0` para `main`. Antes do merge, conferir os tres jobs obrigatorios no GitHub Actions. Depois do merge, verificar os builds das tres imagens Docker e a publicacao no GHCR.
 
-As imagens sao construidas com as versoes de Dockerfile que ja funcionaram localmente. Os workflows nao usam senhas do MySQL para testar: os testes de integracao usam MySQL efemero via Testcontainers.
+> O repositorio ainda pode ter a branch `develop` configurada como padrao no GitHub. Para obter a versao final sem depender dessa configuracao, clone com `git clone --branch main ...`. Caso queira mudar a branch padrao no GitHub, use Settings > General > Default branch (exige permissao administrativa).
 
-## 2. Entrega continua (deploy controlado)
+## Integracao continua (CI)
 
-Arquivo `.github/workflows/deploy.yml`:
+Arquivo: `.github/workflows/ci.yml`.
 
-- Disparo manual no menu **Actions > CD - Deploy manual em homologacao > Run workflow**, selecionando `develop`.
-- Informar o **SHA completo** de um commit da `develop` cujo CI publicou as tres imagens; use o SHA exibido na execucao do CI.
-- O job fica reservado para um runner proprio Linux que possua os rotulos `self-hosted`, `linux`, `x64`, `medicalprescription-deploy`.
-- Necessario instalar Docker Engine e Compose nesse runner, e ter acesso ao GHCR.
-- Configure o ambiente `staging` em Settings > Environments. Recomenda-se aprovacoes obrigatorias (required reviewers), se disponiveis no seu plano/repositorio.
-- No ambiente `staging`, configure **Secrets**: `STAGING_MYSQL_ROOT_PASSWORD` e `STAGING_MYSQL_PASSWORD`.
-- No ambiente `staging`, configure **Variables**: `STAGING_MYSQL_USER`, `STAGING_MYSQL_DATABASE`; opcionalmente `STAGING_MYSQL_PORT`, `STAGING_API_PORT` e `STAGING_FRONTEND_PORT`.
-- O `GITHUB_TOKEN` precisa ter permissao `packages: read` para baixar imagens privadas. Caso a organizacao use outras restricoes de pacote, permita acesso do repositorio ao pacote no GHCR.
+Triggers:
+- Pull Requests para `develop` **ou** `main`: build e testes, sem publicar imagens.
+- Pushes para `develop` **ou** `main`: repetem testes e, se aprovados, publicam imagens.
+- `workflow_dispatch`: permite execucao manual de CI.
 
-O projeto Compose de homologacao usa o nome fixo `medicalprescription-staging`. Isso estabiliza o nome do volume do MySQL entre execucoes. Nao execute `docker compose down -v`; o comando remove o volume persistente.
+Jobs de validacao:
 
-O `docker-compose.deploy.yml` apenas substitui a origem das imagens de `migrate`, `api` e `frontend`; as dependencias e healthchecks continuam definidos no Compose base.
+1. **Build e testes .NET 9:** restore, build Release, xUnit unitario e Testcontainers/MySQL de integracao; publica binarios e relatorios TRX.
+2. **Build e testes Angular 21:** `npm ci`, build de producao, Vitest; publica os arquivos estaticos gerados.
+3. **Primeiro boot - seed em MySQL vazio:** utiliza `scripts/validar-primeira-instalacao.ps1` para subir a stack em projeto Docker Compose isolado, testar API, verificar dois pacientes e dois medicamentos, reiniciar API e confirmar ausencia de duplicatas. Remove apenas os volumes temporarios desse projeto.
 
-**Advertencia:** este deploy e uma demonstracao de homologacao, nao um ambiente clinico de producao. Nao inclui HTTPS publico, autenticacao clinica, politicas de backup, monitoramento e plano de recuperacao de desastres.
+Apenas se **os tres jobs** aprovarem, o job matricial `images` e executado em push na `develop` ou `main`. Ele gera e envia para GHCR:
 
-## 3. Validacao antes de abrir PR
+| Componente | Imagem/tag |
+|---|---|
+| API | `ghcr.io/rafaelrocha011/medical-prescription-api:sha-<SHA>` |
+| Migrations | `ghcr.io/rafaelrocha011/medical-prescription-migrate:sha-<SHA>` |
+| Angular/Nginx | `ghcr.io/rafaelrocha011/medical-prescription-frontend:sha-<SHA>` |
 
-Com o Docker Compose local da Etapa 52 instalado e `.env` configurado:
+`<SHA>` e o SHA completo do commit executado, inclusive o commit de merge na `main`. **Build e push para GHCR nao sao deploy.**
+
+## Instalar em maquina limpa
+
+Consulte o [README principal](../README.md). O caminho recomendado requer Git, Docker Desktop/Engine e Compose v2, mas nao requer .NET, Node, MySQL ou Angular instalados fora dos contêineres.
 
 ```powershell
-cd C:\Projetos\prescricao-medica
-$env:REGISTRY_NAMESPACE = 'ghcr.io/rafaelrocha011/medical-prescription'
-$env:IMAGE_TAG = 'sha-0000000000000000000000000000000000000000'
-docker compose -f docker-compose.yml -f docker-compose.deploy.yml config --quiet
-Remove-Item Env:REGISTRY_NAMESPACE
-Remove-Item Env:IMAGE_TAG
+git clone --branch main https://github.com/rafaelrocha011/medical-prescription.git
+cd medical-prescription
+Copy-Item .env.example .env
+notepad .env
+# Defina MYSQL_ROOT_PASSWORD e MYSQL_PASSWORD antes de continuar.
+docker compose up -d --build
+docker compose ps -a
 ```
 
-Esse teste valida o YAML de Compose; **nao faz deploy nem exige que as imagens existam**. O GitHub Actions devera validar os arquivos de workflow apos o PR. O `README.md` principal deve ser atualizado depois da publicacao do pipeline, indicando a existencia dos fluxos CI/CD.
+`migrate` deve sair com codigo `0`; `mysql`, `api` e `frontend` devem ficar saudaveis. Confira `http://localhost:4200/prescricoes`. A API inicia em `Development` no Compose local, gerando dados ficticios de pacientes e medicamentos quando as tabelas estao vazias.
 
-## 4. Como verificar
+Para testar uma instalacao isolada sem tocar no MySQL existente:
 
-1. Abra Pull Request `feature/docker-ci-cd` para `develop`.
-2. Em Actions, confira `Build e testes .NET 9` e `Build e testes Angular 21`.
-3. Apos merge, confira os tres builds/push para GHCR e os artefatos no workflow.
-4. Configure runner e ambiente `staging` antes de usar o workflow de deploy; ate la, ele permanecera apenas preparado.
+```powershell
+./scripts/validar-primeira-instalacao.ps1
+```
+
+**Nunca execute `docker compose down -v` no projeto de desenvolvimento se quiser preservar o banco.**
+
+## Deploy manual de homologacao (CD)
+
+Arquivo: `.github/workflows/deploy.yml`. A execucao e **manual**, e nao acontece automaticamente na entrega.
+
+- Use Actions > CD - Deploy manual em homologacao > Run workflow.
+- Selecione `main` ou `develop` e informe o **SHA completo** de um commit ancestral da branch selecionada, cujas tres imagens ja tenham sido publicadas pelo CI.
+- O job so pode executar em runner proprio Linux com labels `self-hosted`, `linux`, `x64` e `medicalprescription-deploy`.
+- Configure o GitHub Environment `staging` com os Secrets `STAGING_MYSQL_ROOT_PASSWORD` e `STAGING_MYSQL_PASSWORD`, e Variables `STAGING_MYSQL_USER` e `STAGING_MYSQL_DATABASE`; as portas sao opcionais.
+- O runner precisa ter Docker Engine e Compose, permissao para ler as imagens no GHCR e acesso a rede necessaria.
+
+O job usa `docker-compose.yml` + `docker-compose.deploy.yml` para baixar e iniciar imagens com tag imutavel por commit. O projeto Compose de homologacao usa nome fixo `medicalprescription-staging`, mantendo o volume MySQL entre execucoes. Nao execute `down -v`.
+
+**Limitacoes:** esse CD demonstra homologacao, nao implantacao clinica ou producao. Nao inclui HTTPS publico, autenticacao clinica, assinatura digital, backups ou certificacao SBIS.
