@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: 'SHA completo (40 caracteres) do commit da develop com imagens publicadas no CI'
+        description: 'SHA completo (40 caracteres) de commit da branch escolhida com imagens publicadas no CI'
         required: true
         type: string
 
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy homologacao (runner propio)
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, medicalprescription-deploy]
     environment: staging
     env:
@@ -35,7 +35,7 @@ jobs:
       API_PORT: ${{ vars.STAGING_API_PORT || '5080' }}
       FRONTEND_PORT: ${{ vars.STAGING_FRONTEND_PORT || '4200' }}
     steps:
-      - name: Checkout da develop
+      - name: Checkout da branch selecionada
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$DEPLOY_COMMIT" =~ ^[a-f0-9]{40}$ ]] || { echo 'SHA invalido'; exit 1; }
-          git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/develop || { echo 'Commit fora da develop'; exit 1; }
+          git merge-base --is-ancestor "$DEPLOY_COMMIT" "origin/${GITHUB_REF_NAME}" || { echo "Commit fora de ${GITHUB_REF_NAME}"; exit 1; }
           for value in MYSQL_ROOT_PASSWORD MYSQL_PASSWORD MYSQL_USER MYSQL_DATABASE; do
             if [ -z "${!value}" ]; then
               echo "Configuracao ausente: $value"; exit 1
